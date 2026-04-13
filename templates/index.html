@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeadFlow AI</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── DESIGN DIRECTION: Bloomberg Terminal meets Modern SaaS ──
+   Dark: Deep navy-black + warm amber gold + electric teal
+   Light: Warm ivory + deep slate + amber
+   Font: DM Serif Display (headings) + Outfit (body)
+   Feel: Premium, editorial, confident
+*/
+
+:root{
+  /* ── Warm Taupe Dark + Warm Linen Light + Rust Copper accent ── */
+  --rust:#D4895A;--rust2:#B85A20;--rust3:#C16428;
+  --rust-soft:rgba(212,137,90,0.15);--rust-soft2:rgba(212,137,90,0.08);
+  --red:#C0392B;--red-soft:rgba(192,57,43,0.1);
+  --green:#2E8B57;--green-soft:rgba(46,139,87,0.1);
+  --ease:cubic-bezier(0.22,1,0.36,1);
+  --r:10px;--rp:999px;
+}
+
+/* ─── DARK: Warm Taupe C ─── */
+[data-theme="dark"]{
+  --bg:#3A2E24;--bg2:#2E2318;--bg3:#261D14;
+  --card:rgba(0,0,0,0.15);--cb:rgba(212,137,90,0.18);
+  --ch:rgba(212,137,90,0.06);
+  --tx:#F2E0C8;--t2:rgba(242,224,200,0.62);--t3:rgba(242,224,200,0.38);--t4:rgba(242,224,200,0.16);
+  --ib:rgba(0,0,0,0.2);--ic:rgba(212,137,90,0.22);
+  --dv:rgba(212,137,90,0.12);
+  --accent:var(--rust);--accent2:var(--rust2);--accent-soft:var(--rust-soft);
+  --sidebar-border:rgba(212,137,90,0.15);
+  --btn-ghost:rgba(0,0,0,0.2);--btn-ghost-h:rgba(212,137,90,0.12);
+}
+
+/* ─── LIGHT: Warm Linen L1 ─── */
+[data-theme="light"]{
+  --bg:#F7F0E6;--bg2:#EEE4D4;--bg3:#E6D8C4;
+  --card:rgba(255,255,255,0.85);--cb:rgba(193,100,40,0.15);
+  --ch:rgba(193,100,40,0.05);
+  --tx:#2C1A0E;--t2:rgba(44,26,14,0.58);--t3:rgba(44,26,14,0.38);--t4:rgba(44,26,14,0.16);
+  --ib:rgba(44,26,14,0.04);--ic:rgba(193,100,40,0.18);
+  --dv:rgba(193,100,40,0.1);
+  --accent:#C16428;--accent2:#9A4A18;--accent-soft:rgba(193,100,40,0.1);
+  --sidebar-border:rgba(193,100,40,0.18);
+  --btn-ghost:rgba(44,26,14,0.06);--btn-ghost-h:rgba(193,100,40,0.1);
+}
+
+/* ── BASE ── */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{font-size:14px;}
+body{
+  font-family:'Outfit',sans-serif;
+  background:var(--bg);color:var(--tx);
+  min-height:100vh;overflow-x:hidden;
+  transition:background .35s var(--ease),color .35s var(--ease);
+}
+
+/* grid texture overlay in dark mode */
+[data-theme="dark"] body::before{
+  content:'';position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(212,137,90,0.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(212,137,90,0.04) 1px,transparent 1px);
+  background-size:44px 44px;
+  pointer-events:none;z-index:0;
+}
+
+/* ── AMBIENT GLOW ── */
+.glow{position:fixed;border-radius:50%;filter:blur(130px);pointer-events:none;z-index:0;}
+.g1{width:500px;height:500px;background:rgba(212,137,90,0.12);top:-150px;left:-80px;animation:gf 12s ease-in-out infinite;}
+.g2{width:350px;height:350px;background:rgba(184,90,32,0.08);bottom:-80px;right:-60px;animation:gf 15s ease-in-out infinite reverse;}
+@keyframes gf{0%,100%{transform:scale(1);}50%{transform:scale(1.15) translate(20px,-20px);}}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:228px;height:100vh;background:var(--bg2);
+  border-right:1px solid var(--sidebar-border);
+  position:fixed;left:0;top:0;
+  padding:24px 14px 20px;
+  display:flex;flex-direction:column;z-index:100;
+  overflow-y:auto;overflow-x:hidden;
+}
+/* amber top line */
+.sidebar::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--teal),transparent);
+}
+.logo-wrap{margin-bottom:28px;padding-left:4px;}
+.logo{
+  font-family:'DM Serif Display',serif;font-size:22px;font-weight:400;
+  color:var(--accent);letter-spacing:-.3px;line-height:1;
+}
+
+.logo-sub{font-size:9px;font-weight:600;color:var(--t3);letter-spacing:.16em;text-transform:uppercase;margin-top:4px;}
+
+.ns{font-size:8.5px;font-weight:700;color:var(--t4);letter-spacing:.14em;text-transform:uppercase;padding:0 8px;margin:8px 0 4px;}
+.ni{
+  padding:8px 10px;border-radius:8px;cursor:pointer;
+  font-size:13px;font-weight:500;color:var(--t2);
+  margin-bottom:1px;display:flex;align-items:center;gap:10px;
+  position:relative;transition:all .18s var(--ease);
+}
+.ni:hover{background:var(--ch);color:var(--tx);}
+.ni.on{background:var(--rust-soft);color:var(--accent);}
+.ni.on::before{content:'';position:absolute;left:0;top:15%;bottom:15%;width:2.5px;background:var(--accent);border-radius:0 2px 2px 0;}
+.ni-ic{font-size:14px;width:18px;text-align:center;flex-shrink:0;}
+
+/* theme row */
+.tr{margin-top:auto;padding-top:10px;padding-top:14px;border-top:1px solid var(--dv);display:flex;align-items:center;gap:10px;cursor:pointer;padding-left:4px;}
+.trk{width:32px;height:18px;background:var(--ib);border:1px solid var(--ic);border-radius:999px;position:relative;transition:all .3s;flex-shrink:0;}
+[data-theme="light"] .trk{background:var(--accent);border-color:transparent;}
+.tth{width:12px;height:12px;border-radius:50%;background:var(--t4);position:absolute;top:2.5px;left:2.5px;transition:all .3s;}
+[data-theme="light"] .tth{transform:translateX(14px);background:#fff;}
+.tl{font-size:11.5px;font-weight:500;color:var(--t3);}
+
+/* ── MAIN ── */
+.main{margin-left:228px;padding:28px 32px;min-height:100vh;position:relative;z-index:1;}
+.pg{display:none;}
+.pg.active{display:block;animation:pgIn .28s var(--ease);}
+@keyframes pgIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── PAGE HEADER ── */
+.ph{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+.pt{font-family:'DM Serif Display',serif;font-size:28px;font-weight:400;line-height:1.1;color:var(--tx);
+.pt em{display:none;}}
+
+.ps{font-size:12px;color:var(--t3);margin-top:5px;font-weight:400;}
+
+/* ── STATS ── */
+.sg{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px;}
+.sc{
+  background:var(--card);border:1px solid var(--cb);border-radius:var(--r);
+  padding:18px;position:relative;overflow:hidden;
+  transition:border-color .2s,transform .2s var(--ease);
+}
+.sc:hover{border-color:rgba(212,137,90,0.3);transform:translateY(-2px);}
+.sc::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:opacity .2s;}
+.sc:hover::after{opacity:0.5;}
+.sl{font-size:9px;font-weight:700;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;}
+.sv{font-family:'DM Serif Display',serif;font-size:32px;font-weight:400;line-height:1;margin-bottom:3px;color:var(--tx);}
+.st{font-size:10px;color:var(--t4);}
+
+/* ── CARD ── */
+.card{background:var(--card);border:1px solid var(--cb);border-radius:var(--r);padding:22px;margin-bottom:16px;}
+
+/* ── FORM ── */
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.fm{display:flex;flex-direction:column;gap:6px;}
+.full{grid-column:1/-1;}
+label{font-size:9.5px;font-weight:700;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;}
+input,select,textarea{
+  background:var(--ib);border:1px solid var(--ic);border-radius:8px;
+  padding:9px 12px;color:var(--tx);font-size:13px;font-family:'Outfit',sans-serif;
+  transition:border-color .2s,box-shadow .2s;outline:none;width:100%;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(212,137,90,0.12);}
+input::placeholder{color:var(--t4);}
+select option{background:var(--bg2);color:var(--tx);}
+textarea{resize:vertical;min-height:70px;}
+.crow{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--t2);font-weight:500;}
+.crow input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--accent);padding:0;flex-shrink:0;}
+
+/* ── BUTTONS ── */
+.btn{
+  padding:9px 18px;border-radius:7px;border:none;
+  font-size:13px;font-weight:600;cursor:pointer;
+  font-family:'Outfit',sans-serif;
+  transition:all .18s var(--ease);
+  display:inline-flex;align-items:center;gap:7px;
+  white-space:nowrap;letter-spacing:.01em;
+}
+/* Primary = amber */
+.bp{background:var(--accent);color:#1A1208;box-shadow:0 2px 12px rgba(212,137,90,0.3);}
+.bp:hover{background:var(--accent2);transform:translateY(-1px);box-shadow:0 4px 18px rgba(212,137,90,0.4);}
+.bp:active{transform:translateY(0);}
+
+/* Teal = secondary CTA */
+.bt{background:var(--teal);color:#fff;box-shadow:0 2px 10px rgba(13,148,136,0.25);}
+.bt:hover{background:var(--teal2);transform:translateY(-1px);}
+
+/* Success */
+.bs{background:var(--green-soft);border:1px solid rgba(5,150,105,0.3);color:#34D399;}
+.bs:hover{background:rgba(5,150,105,0.2);}
+
+/* Warning */
+.bw{background:rgba(212,137,90,0.1);border:1px solid rgba(212,137,90,0.3);color:var(--accent);}
+.bw:hover{background:rgba(212,137,90,0.18);}
+
+/* Danger */
+.bd{background:var(--red-soft);border:1px solid rgba(220,38,38,0.25);color:#F87171;}
+.bd:hover{background:rgba(220,38,38,0.18);}
+
+/* Ghost */
+.bo{background:var(--btn-ghost);border:1px solid var(--ic);color:var(--t2);}
+.bo:hover{border-color:var(--accent);color:var(--accent);background:var(--rust-soft);}
+
+/* Sizes */
+.sm{padding:6px 13px;font-size:12px;}
+.xs{padding:4px 9px;font-size:11.5px;border-radius:6px;}
+
+/* ── TABLE ── */
+.tw{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{
+  font-size:9px;font-weight:700;color:var(--t3);
+  letter-spacing:.12em;text-transform:uppercase;
+  padding:8px 14px;text-align:left;border-bottom:1px solid var(--dv);
+}
+td{padding:12px 14px;font-size:13px;border-bottom:1px solid var(--dv);color:var(--t2);vertical-align:middle;}
+tr:hover td{background:var(--ch);}
+tr:last-child td{border-bottom:none;}
+td b{color:var(--tx);font-weight:600;}
+
+/* ── BADGES ── */
+.bdg{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;font-size:10px;font-weight:600;white-space:nowrap;letter-spacing:.02em;}
+.bdg::before{content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.bn{background:rgba(59,130,246,0.1);color:#60A5FA;border:1px solid rgba(59,130,246,0.2);}.bn::before{background:#60A5FA;}
+.be{background:rgba(212,137,90,0.1);color:var(--accent);border:1px solid rgba(212,137,90,0.25);}.be::before{background:var(--accent);}
+.br{background:rgba(5,150,105,0.1);color:#34D399;border:1px solid rgba(5,150,105,0.25);}.br::before{background:#34D399;}
+.bso{background:rgba(249,115,22,0.1);color:#FB923C;border:1px solid rgba(249,115,22,0.2);}.bso::before{background:#FB923C;}
+.brj{background:rgba(220,38,38,0.1);color:#F87171;border:1px solid rgba(220,38,38,0.2);}.brj::before{background:#F87171;}
+.bv{background:rgba(5,150,105,0.1);color:#34D399;border:1px solid rgba(5,150,105,0.2);font-size:10px;padding:2px 8px;border-radius:4px;}
+.buv{background:rgba(220,38,38,0.07);color:#F87171;border:1px solid rgba(220,38,38,0.15);font-size:10px;padding:2px 8px;border-radius:4px;}
+.bv::before,.buv::before{display:none;}
+.cp{display:inline-block;background:var(--rust-soft);border:1px solid rgba(212,137,90,0.3);border-radius:5px;padding:2px 8px;font-size:10px;font-weight:600;color:var(--accent);}
+.ftag{background:var(--red-soft);border:1px solid rgba(220,38,38,0.2);border-radius:4px;padding:2px 7px;font-size:9.5px;font-weight:600;color:#F87171;display:inline-block;margin:1px;}
+
+/* ── AI CHIPS ── */
+.hchip{
+  display:inline-flex;align-items:center;padding:6px 14px;border-radius:6px;
+  background:var(--ib);border:1px solid var(--ic);
+  color:var(--t2);font-size:12px;font-weight:500;
+  cursor:pointer;transition:all .18s var(--ease);
+  animation:chipIn .25s var(--ease) backwards;
+}
+.hchip:hover{background:var(--rust-soft);border-color:rgba(212,137,90,0.4);color:var(--accent);transform:translateY(-1px);}
+@keyframes chipIn{from{opacity:0;transform:scale(.94);}to{opacity:1;transform:scale(1);}}
+
+/* ── JOB CARDS ── */
+.jcard{
+  background:var(--card);border:1px solid var(--cb);border-radius:var(--r);
+  padding:14px 16px;margin-bottom:8px;
+  display:flex;align-items:flex-start;gap:14px;
+  transition:all .18s var(--ease);cursor:pointer;
+}
+.jcard:hover{border-color:rgba(212,137,90,0.25);background:var(--ch);}
+.jcard.sel{border-color:var(--accent);background:var(--rust-soft);}
+.jlogo{width:38px;height:38px;border-radius:8px;background:var(--ib);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--accent);flex-shrink:0;overflow:hidden;border:1px solid var(--cb);}
+.jlogo img{width:100%;height:100%;object-fit:contain;}
+.jname{font-size:13.5px;font-weight:600;color:var(--tx);}
+.jtitle{font-size:11.5px;color:var(--t2);margin-top:2px;}
+.jmeta{display:flex;gap:14px;margin-top:7px;flex-wrap:wrap;}
+.jm{font-size:10.5px;color:var(--t3);display:flex;align-items:center;gap:3px;}
+.jchk{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;margin-top:4px;}
+
+/* ── MODAL ── */
+.mo{display:none;position:fixed;inset:0;background:rgba(5,7,20,0.75);backdrop-filter:blur(10px);z-index:1000;align-items:center;justify-content:center;}
+.mo.show{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--cb);border-radius:12px;padding:28px;max-height:88vh;overflow-y:auto;animation:mIn .22s var(--ease);}
+.modal::before{content:'';display:block;height:2px;background:linear-gradient(90deg,var(--accent),var(--teal));margin:-28px -28px 24px;border-radius:12px 12px 0 0;}
+@keyframes mIn{from{opacity:0;transform:scale(.96) translateY(8px);}to{opacity:1;transform:scale(1) translateY(0);}}
+.mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.mt{font-family:'DM Serif Display',serif;font-size:18px;font-weight:400;color:var(--tx);}
+.mcl{background:var(--ib);border:1px solid var(--ic);color:var(--t2);cursor:pointer;width:28px;height:28px;border-radius:6px;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.mcl:hover{border-color:var(--red);color:#F87171;}
+
+/* ── EMAIL TABS ── */
+.etabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+.etab{padding:6px 14px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;border:1px solid var(--ic);background:var(--ib);color:var(--t2);font-family:'Outfit',sans-serif;transition:all .15s;}
+.etab:hover{border-color:var(--accent);color:var(--accent);}
+.etab.on{background:var(--accent);border-color:var(--accent);color:#1A1208;}
+
+/* email preview */
+.ep{background:var(--ib);border:1px solid var(--ic);border-radius:8px;padding:18px;margin-bottom:14px;}
+.esb{font-size:12.5px;font-weight:700;color:var(--tx);margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--dv);}
+.ebo{font-size:13px;line-height:1.8;color:var(--t2);white-space:pre-wrap;}
+
+/* ── EMAIL SEQUENCE VISUAL ── */
+.seq-wrap{display:flex;align-items:flex-start;gap:0;position:relative;padding:8px 0;}
+.seq-step{flex:1;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;}
+.seq-line{position:absolute;top:20px;left:50%;right:-50%;height:1px;background:var(--dv);z-index:0;}
+.seq-step:last-child .seq-line{display:none;}
+.seq-dot{
+  width:40px;height:40px;border-radius:8px;
+  background:var(--ib);border:1px solid var(--ic);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;position:relative;z-index:1;
+  transition:all .2s var(--ease);cursor:default;
+}
+.seq-dot.active{background:var(--rust-soft);border-color:rgba(212,137,90,0.5);}
+.seq-label{font-size:11px;font-weight:600;color:var(--t2);text-align:center;}
+.seq-day{font-size:10px;color:var(--t3);font-family:'DM Serif Display',serif;font-style:italic;}
+
+/* ── LOADING ── */
+.ld{text-align:center;padding:24px;color:var(--t3);font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:9px;}
+.ld::before{content:'';width:14px;height:14px;border-radius:50%;border:1.5px solid var(--dv);border-top-color:var(--accent);animation:spin .7s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── NOTIFY ── */
+.notif{
+  position:fixed;top:20px;right:20px;padding:11px 18px;border-radius:8px;
+  font-size:12.5px;font-weight:600;z-index:9999;display:none;max-width:300px;
+  line-height:1.4;border:1px solid;backdrop-filter:blur(12px);
+}
+.notif.show{display:block;animation:nIn .25s var(--ease);}
+@keyframes nIn{from{opacity:0;transform:translateX(16px);}to{opacity:1;transform:translateX(0);}}
+.notif.success{background:rgba(5,150,105,.12);border-color:rgba(5,150,105,.35);color:#34D399;}
+.notif.error{background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.3);color:#F87171;}
+.notif.warning{background:rgba(212,137,90,.1);border-color:rgba(212,137,90,.3);color:var(--accent);}
+
+/* ── MISC ── */
+.back{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--t3);cursor:pointer;margin-bottom:16px;transition:color .15s;padding:5px 8px;border-radius:6px;}
+.back:hover{color:var(--accent);background:var(--rust-soft);}
+.div{height:1px;background:var(--dv);margin:16px 0;}
+.empty{text-align:center;padding:44px 20px;color:var(--t3);}
+.empty .em{font-size:36px;margin-bottom:10px;}
+.empty p{font-size:13px;line-height:1.7;font-weight:400;}
+.sal-sug{font-size:11px;color:var(--accent);margin-top:4px;display:flex;align-items:center;gap:5px;}
+.vbox{border-radius:8px;padding:14px;margin-bottom:14px;}
+.vbox.ok{background:var(--green-soft);border:1px solid rgba(5,150,105,0.3);}
+.vbox.info{background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);}
+.vt{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;}
+.vbox.ok .vt{color:#34D399;}.vbox.info .vt{color:#60A5FA;}
+.vem{font-family:'DM Serif Display',serif;font-size:16px;color:#34D399;}
+.ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;}
+.ct{font-family:'DM Serif Display',serif;font-size:16px;font-weight:400;color:var(--tx);}
+::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-thumb{background:var(--dv);border-radius:3px;}
+
+/* ── RICH ANIMATIONS ── */
+
+/* Stat cards count up */
+@keyframes countUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.sv{animation:countUp .5s var(--ease) backwards;}
+.sc:nth-child(1) .sv{animation-delay:.05s;}
+.sc:nth-child(2) .sv{animation-delay:.12s;}
+.sc:nth-child(3) .sv{animation-delay:.19s;}
+.sc:nth-child(4) .sv{animation-delay:.26s;}
+.sc:nth-child(5) .sv{animation-delay:.33s;}
+
+/* Stat card entrance */
+@keyframes scIn{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+.sc{animation:scIn .4s var(--ease) backwards;}
+.sc:nth-child(1){animation-delay:.0s;}
+.sc:nth-child(2){animation-delay:.07s;}
+.sc:nth-child(3){animation-delay:.14s;}
+.sc:nth-child(4){animation-delay:.21s;}
+.sc:nth-child(5){animation-delay:.28s;}
+
+/* Card entrance */
+@keyframes cardIn{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+.card{animation:cardIn .35s var(--ease) backwards;}
+
+/* Table row stagger */
+@keyframes rowIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:translateX(0);}}
+tbody tr{animation:rowIn .25s var(--ease) backwards;}
+tbody tr:nth-child(1){animation-delay:.05s;}
+tbody tr:nth-child(2){animation-delay:.1s;}
+tbody tr:nth-child(3){animation-delay:.15s;}
+tbody tr:nth-child(4){animation-delay:.2s;}
+tbody tr:nth-child(5){animation-delay:.25s;}
+tbody tr:nth-child(6){animation-delay:.3s;}
+tbody tr:nth-child(7){animation-delay:.35s;}
+tbody tr:nth-child(8){animation-delay:.4s;}
+tbody tr:nth-child(9){animation-delay:.45s;}
+tbody tr:nth-child(10){animation-delay:.5s;}
+
+/* Sidebar nav stagger on load */
+@keyframes navIn{from{opacity:0;transform:translateX(-10px);}to{opacity:1;transform:translateX(0);}}
+.ni{animation:navIn .3s var(--ease) backwards;}
+.ni:nth-child(1){animation-delay:.1s;}
+.ni:nth-child(2){animation-delay:.16s;}
+.ni:nth-child(3){animation-delay:.22s;}
+.ni:nth-child(4){animation-delay:.28s;}
+.ni:nth-child(5){animation-delay:.34s;}
+
+/* Button ripple */
+.btn{overflow:hidden;}
+.btn .ripple{
+  position:absolute;border-radius:50%;background:rgba(255,255,255,0.25);
+  transform:scale(0);animation:ripple .5s linear;pointer-events:none;
+}
+@keyframes ripple{to{transform:scale(4);opacity:0;}}
+
+/* Logo entrance */
+@keyframes logoIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+.logo-wrap{animation:logoIn .4s var(--ease) .05s backwards;}
+
+/* Modal backdrop fade */
+@keyframes bdIn{from{opacity:0;}to{opacity:1;}}
+.mo.show{animation:bdIn .2s ease;}
+
+/* Chip pulse on hover */
+.hchip:hover{animation:none;}
+
+/* Floating empty state */
+@keyframes emFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+.empty .em{display:block;animation:emFloat 3s ease-in-out infinite;}
+
+/* Notification slide */
+@keyframes nIn{from{opacity:0;transform:translateX(20px) scale(.96);}to{opacity:1;transform:translateX(0) scale(1);}}
+
+/* Skeleton shimmer */
+@keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+.skel{
+  background:linear-gradient(90deg,var(--ib) 25%,var(--ic) 50%,var(--ib) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite;
+  border-radius:5px;height:13px;
+}
+
+/* Search result cards stagger */
+.jcard{animation:cardIn .25s var(--ease) backwards;}
+
+/* Page transition enhanced */
+@keyframes pgIn{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+
+/* Glow blobs breathe */
+@keyframes gf{
+  0%,100%{transform:scale(1) translate(0,0);}
+  33%{transform:scale(1.1) translate(15px,-20px);}
+  66%{transform:scale(0.95) translate(-10px,15px);}
+}
+
+/* Accent line on sidebar */
+@keyframes lineIn{from{width:0;}to{width:100%;}}
+.sidebar::after{animation:lineIn .8s var(--ease) .2s backwards;}
+
+
+/* ═══ FOX MASCOT ═══ */
+.fox-sidebar{
+  margin-top:12px;padding:12px 0 12px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;border-bottom:1px solid var(--dv);
+}
+.fox-wrap{
+  width:62px;height:62px;cursor:pointer;position:relative;
+  filter:drop-shadow(0 2px 8px rgba(212,137,90,0.3));
+  transition:transform .2s var(--ease);
+}
+.fox-wrap:hover{transform:scale(1.1);}
+.fox-tagline{font-size:9px;font-weight:600;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;text-align:center;}
+
+/* idle tail wag */
+@keyframes tailWag{
+  0%,100%{transform:rotate(0deg);}
+  25%{transform:rotate(18deg);}
+  75%{transform:rotate(-14deg);}
+}
+.fox-tail{transform-origin:0% 50%;animation:tailWag 1.8s ease-in-out infinite;}
+
+/* idle ear twitch */
+@keyframes earTwitch{
+  0%,85%,100%{transform:rotate(0deg);}
+  90%{transform:rotate(-8deg);}
+  95%{transform:rotate(5deg);}
+}
+.fox-ear-l{transform-origin:50% 100%;animation:earTwitch 3.5s ease-in-out infinite;}
+.fox-ear-r{transform-origin:50% 100%;animation:earTwitch 3.5s ease-in-out infinite .4s;}
+
+/* idle blink */
+@keyframes blink{
+  0%,92%,100%{transform:scaleY(1);}
+  96%{transform:scaleY(0.05);}
+}
+.fox-eyes{transform-origin:50% 50%;animation:blink 4s ease-in-out infinite;}
+
+/* idle bounce */
+@keyframes foxBob{
+  0%,100%{transform:translateY(0);}
+  50%{transform:translateY(-3px);}
+}
+.fox-body-group{animation:foxBob 2.2s ease-in-out infinite;}
+
+/* ── HUNT ANIMATION (runs across screen) ── */
+.fox-hunter{
+  position:fixed;bottom:60px;left:-140px;z-index:99999;
+  pointer-events:none;
+  animation:foxRun 2.2s cubic-bezier(0.4,0,0.2,1) forwards;
+  filter:drop-shadow(0 4px 16px rgba(212,137,90,0.5));
+}
+@keyframes foxRun{
+  0%{left:-140px;transform:scaleX(1);}
+  100%{left:calc(100vw + 20px);transform:scaleX(1);}
+}
+
+/* fox running legs */
+.fox-leg-fl{transform-origin:50% 0%;animation:legRun 0.28s ease-in-out infinite alternate;}
+.fox-leg-bl{transform-origin:50% 0%;animation:legRun 0.28s ease-in-out infinite alternate-reverse;}
+.fox-leg-fr{transform-origin:50% 0%;animation:legRun2 0.28s ease-in-out infinite alternate;}
+.fox-leg-br{transform-origin:50% 0%;animation:legRun2 0.28s ease-in-out infinite alternate-reverse;}
+@keyframes legRun{0%{transform:rotate(-30deg);}100%{transform:rotate(30deg);}}
+@keyframes legRun2{0%{transform:rotate(25deg);}100%{transform:rotate(-25deg);}}
+
+/* running tail */
+.fox-run-tail{transform-origin:0% 50%;animation:runTail 0.3s ease-in-out infinite alternate;}
+@keyframes runTail{0%{transform:rotate(-20deg);}100%{transform:rotate(20deg);}}
+
+/* catch badge */
+.fox-catch{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:100000;pointer-events:none;
+  animation:catchPop .5s cubic-bezier(0.34,1.56,0.64,1) forwards, catchFade .4s ease .9s forwards;
+  background:#3A2E24;border:2px solid #D4895A;border-radius:16px;
+  padding:18px 32px;text-align:center;
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);
+}
+@keyframes catchPop{from{opacity:0;transform:translate(-50%,-50%) scale(.6);}to{opacity:1;transform:translate(-50%,-50%) scale(1);}}
+@keyframes catchFade{from{opacity:1;}to{opacity:0;}}
+.fox-catch-title{font-family:'DM Serif Display',serif;font-size:22px;color:#F2E0C8;margin-bottom:4px;}
+.fox-catch-sub{font-size:12px;color:#D4895A;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
+
+</style>
+</head>
+<body>
+<div class="glow g1"></div>
+<div class="glow g2"></div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="logo-wrap">
+    <div class="logo">LeadFlow AI</div>
+    <div class="logo-sub">B2B Lead Generation</div>
+  </div>
+  <div class="ns">Navigation</div>
+  <div class="ni on" onclick="sp('dashboard',this)"><span class="ni-ic">◈</span> Dashboard</div>
+  <div class="ni" onclick="sp('campaigns',this)"><span class="ni-ic">⊞</span> Campaigns</div>
+  <div class="ni" onclick="sp('leads',this)"><span class="ni-ic">⊙</span> All Leads</div>
+  <div class="ni" onclick="sp('email-flow',this)"><span class="ni-ic">◎</span> Email Sequences</div>
+  <div class="ni" onclick="sp('hierarchy',this)"><span class="ni-ic">⊛</span> Role Hierarchy</div>
+
+  <!-- FOX MASCOT -->
+  <div class="fox-sidebar">
+    <div class="fox-wrap" onclick="foxBark()" title="Click me!">
+      <svg viewBox="0 0 80 90" width="62" height="70" xmlns="http://www.w3.org/2000/svg">
+        <g class="fox-body-group">
+          <!-- tail -->
+          <g class="fox-tail">
+            <path d="M14 58 Q2 52 5 68 Q7 82 20 76 Q28 72 26 62Z" fill="#D4895A"/>
+            <path d="M6 66 Q6 78 17 74 Q23 71 19 64Z" fill="#F2E0C8"/>
+          </g>
+          <!-- body -->
+          <path d="M22 54 Q22 80 42 80 Q62 80 62 54 Q58 46 42 44 Q26 46 22 54Z" fill="#D4895A"/>
+          <!-- white belly -->
+          <ellipse cx="42" cy="66" rx="12" ry="10" fill="#F2E0C8"/>
+          <!-- head diamond -->
+          <path d="M42 10 L64 36 L42 52 L20 36 Z" fill="#D4895A"/>
+          <!-- LEFT ear spike -->
+          <g class="fox-ear-l">
+            <polygon points="26,28 18,4 34,24" fill="#D4895A"/>
+            <polygon points="27,27 21,8 33,24" fill="#B85A20" opacity="0.6"/>
+          </g>
+          <!-- RIGHT ear spike -->
+          <g class="fox-ear-r">
+            <polygon points="58,28 66,4 50,24" fill="#D4895A"/>
+            <polygon points="57,27 63,8 51,24" fill="#B85A20" opacity="0.6"/>
+          </g>
+          <!-- face mask white -->
+          <path d="M28 36 Q34 50 42 50 Q50 50 56 36 Q50 30 42 28 Q34 30 28 36Z" fill="#F2E0C8"/>
+          <!-- eyes -->
+          <g class="fox-eyes">
+            <ellipse cx="34" cy="34" rx="3.5" ry="3" fill="#2C1A0E"/>
+            <ellipse cx="50" cy="34" rx="3.5" ry="3" fill="#2C1A0E"/>
+            <circle cx="35" cy="33" r="1.2" fill="white"/>
+            <circle cx="51" cy="33" r="1.2" fill="white"/>
+          </g>
+          <!-- pointed snout -->
+          <path d="M36 44 Q42 54 48 44 Q44 40 42 39 Q40 40 36 44Z" fill="#F2E0C8"/>
+          <!-- nose -->
+          <polygon points="42,44 39,48 45,48" fill="#2C1A0E"/>
+          <path d="M39 48 Q42 52 45 48" stroke="#2C1A0E" stroke-width="1" fill="none" stroke-linecap="round"/>
+          <!-- briefcase -->
+          <rect x="34" y="78" width="16" height="10" rx="2" fill="#B85A20"/>
+          <path d="M37 78 Q37 74 42 74 Q47 74 47 78" stroke="#F2E0C8" stroke-width="1.2" fill="none"/>
+          <line x1="34" y1="83" x2="50" y2="83" stroke="#F2E0C8" stroke-width="0.7" opacity="0.5"/>
+        </g>
+      </svg>
+    </div>
+    <div class="fox-tagline" id="fox-tag">on the hunt</div>
+  </div>
+
+  <div class="tr" onclick="toggleT()">
+    <div class="trk"><div class="tth"></div></div>
+    <span class="tl" id="tlbl">Light Mode</span>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- DASHBOARD -->
+<div class="pg active" id="pg-dashboard">
+  <div class="ph">
+    <div><div class="pt">Your Pipeline</div><div class="ps">Real-time overview of your lead generation activity</div></div>
+    <button class="btn bo sm" onclick="dlCSV()">⬇ Export CSV</button>
+  </div>
+  <div class="sg">
+    <div class="sc"><div class="sl">Total Leads</div><div class="sv" id="s-tot">0</div><div class="st">In database</div></div>
+    <div class="sc"><div class="sl">Emailed</div><div class="sv" style="color:var(--accent)" id="s-em">0</div><div class="st">Outreach sent</div></div>
+    <div class="sc"><div class="sl">Responded</div><div class="sv" style="color:#34D399" id="s-re">0</div><div class="st">Positive replies</div></div>
+    <div class="sc"><div class="sl">Soft Rejection</div><div class="sv" style="color:#FB923C" id="s-so">0</div><div class="st">Follow up later</div></div>
+    <div class="sc"><div class="sl">Response Rate</div><div class="sv" id="s-rt">0%</div><div class="st">Of emailed leads</div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">Recent Leads</div></div>
+    <div class="tw"><table>
+      <thead><tr><th>Name</th><th>Title</th><th>Company</th><th>Campaign</th><th>Email</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody id="dash-tb"><tr><td colspan="7"><div class="empty"><div class="em">◈</div><p>No leads yet.<br>Create a campaign to get started.</p></div></td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- CAMPAIGNS -->
+<div class="pg" id="pg-campaigns">
+  <div class="ph">
+    <div><div class="pt">Campaigns</div><div class="ps">Each campaign searches companies hiring for a specific role</div></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div style="position:relative">
+        <input type="text" id="global-search" placeholder="⊙ Search saved companies..." oninput="globalSearch(this.value)" onfocus="document.getElementById('search-dropdown').style.display='block'" onblur="setTimeout(()=>document.getElementById('search-dropdown').style.display='none',220)"
+        style="width:200px;padding:7px 12px;font-size:12.5px;">
+        <div id="search-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);right:0;background:var(--bg2);border:1px solid var(--ic);border-radius:8px;max-height:260px;overflow-y:auto;z-index:9999;min-width:280px;box-shadow:0 8px 24px rgba(0,0,0,0.3)">
+          <div id="search-results-dd" style="padding:6px"></div>
+        </div>
+      </div>
+      <button class="btn bp sm" onclick="sp('new-campaign',null)">+ New Campaign</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="tw"><table>
+      <thead><tr><th>Campaign Name</th><th>Role</th><th>Location</th><th>Min Salary</th><th>Companies</th><th>Contacts</th><th>Responded</th><th>Actions</th></tr></thead>
+      <tbody id="camp-tb"><tr><td colspan="8"><div class="empty"><div class="em">⊞</div><p>No campaigns yet.<br>Create your first one.</p></div></td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- NEW CAMPAIGN -->
+<div class="pg" id="pg-new-campaign">
+  <div class="back" onclick="sp('campaigns',document.querySelectorAll('.ni')[1])">← Back</div>
+  <div class="ph"><div><div class="pt">New Campaign</div><div class="ps">AI automatically finds companies hiring for your target role</div></div></div>
+  <div class="card">
+    <div class="fg">
+      <div class="fm full"><label>Campaign Name</label><input type="text" id="cn-name" placeholder="New York — Financial Analyst — March 2026"></div>
+      <div class="fm"><label>Target Role</label><input type="text" id="cn-role" placeholder="Financial Analyst" oninput="debounceS()"></div>
+      <div class="fm"><label>Location</label>
+        <select id="cn-loc">
+          <option value="United States">🇺🇸 United States (All)</option>
+          <optgroup label="── US States ──">
+            <option>Alabama, US</option><option>Alaska, US</option><option>Arizona, US</option><option>Arkansas, US</option>
+            <option>California, US</option><option>Colorado, US</option><option>Connecticut, US</option><option>Delaware, US</option>
+            <option>Florida, US</option><option>Georgia, US</option><option>Hawaii, US</option><option>Idaho, US</option>
+            <option>Illinois, US</option><option>Indiana, US</option><option>Iowa, US</option><option>Kansas, US</option>
+            <option>Kentucky, US</option><option>Louisiana, US</option><option>Maine, US</option><option>Maryland, US</option>
+            <option>Massachusetts, US</option><option>Michigan, US</option><option>Minnesota, US</option><option>Mississippi, US</option>
+            <option>Missouri, US</option><option>Montana, US</option><option>Nebraska, US</option><option>Nevada, US</option>
+            <option>New Hampshire, US</option><option>New Jersey, US</option><option>New Mexico, US</option><option>New York, US</option>
+            <option>North Carolina, US</option><option>North Dakota, US</option><option>Ohio, US</option><option>Oklahoma, US</option>
+            <option>Oregon, US</option><option>Pennsylvania, US</option><option>Rhode Island, US</option><option>South Carolina, US</option>
+            <option>South Dakota, US</option><option>Tennessee, US</option><option>Texas, US</option><option>Utah, US</option>
+            <option>Vermont, US</option><option>Virginia, US</option><option>Washington, US</option><option>West Virginia, US</option>
+            <option>Wisconsin, US</option><option>Wyoming, US</option>
+          </optgroup>
+          <option value="United Kingdom">🇬🇧 United Kingdom (All)</option>
+          <optgroup label="── UK Cities ──">
+            <option>London, UK</option><option>Manchester, UK</option><option>Birmingham, UK</option><option>Leeds, UK</option>
+            <option>Glasgow, UK</option><option>Edinburgh, UK</option><option>Bristol, UK</option><option>Liverpool, UK</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="fm"><label>Job Posted Within</label>
+        <select id="cn-date">
+          <option value="24h">Past 24 Hours</option><option value="3days">Past 3 Days</option>
+          <option value="week" selected>Past Week</option><option value="month">Past Month</option>
+        </select>
+      </div>
+      <div class="fm"><label>Min Company Size</label><input type="number" id="cn-min" value="50"></div>
+      <div class="fm"><label>Max Company Size</label><input type="number" id="cn-max" value="10000"></div>
+      <div class="fm">
+        <label>Minimum Salary (USD/year)</label>
+        <input type="number" id="cn-sal" value="80000">
+        <div class="sal-sug" id="sal-suggest" style="display:none">◆ <span id="sal-text"></span></div>
+      </div>
+      <div class="fm"><label>Exclude Company Types</label><input type="text" id="cn-excl" value="Staffing,Recruiting,Talent,Consultancy,IT Consultancy,Human Resources Services,Technology Information and Media,University,Non-profit,NGO"></div>
+      <div class="fm full" style="flex-direction:row;gap:24px;flex-wrap:wrap;align-items:center">
+        <label class="crow"><input type="checkbox" id="cn-int" checked> Exclude Internships</label>
+        <label class="crow"><input type="checkbox" id="cn-rem" checked> Exclude Remote-only</label>
+        <label class="crow"><input type="checkbox" id="cn-app" checked> Exclude Apprenticeships</label>
+      </div>
+      <div class="fm full"><label>Notes</label><textarea id="cn-not" placeholder="Any notes..."></textarea></div>
+    </div>
+    <div style="margin-top:20px;display:flex;gap:10px">
+      <button class="btn bp" id="create-camp-btn" onclick="createCampaign()">Create Campaign & Search Companies →</button>
+      <button class="btn bo" onclick="sp('campaigns',null)">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- CAMPAIGN DETAIL -->
+<div class="pg" id="pg-campaign-detail">
+  <div class="back" onclick="sp('campaigns',document.querySelectorAll('.ni')[1])">← Campaigns</div>
+  <div class="ph">
+    <div><div class="pt" id="cd-title">Campaign <em>Detail</em></div><div class="ps" id="cd-sub"></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn bo sm" onclick="openEditFilters()">⚙ Edit Filters</button>
+      <button class="btn bo sm" onclick="dlCSV(currentCampaignId)">⬇ CSV</button>
+    </div>
+  </div>
+
+  <div id="search-section" style="display:none">
+    <div class="card">
+      <div class="ch">
+        <div class="ct" id="search-title">Searching...</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span id="sel-count" style="font-size:12px;color:var(--t2);font-weight:500">0 selected</span>
+          <button class="btn bo xs" onclick="selAll()">All</button>
+          <button class="btn bo xs" onclick="selNone()">Clear</button>
+          <button class="btn bp sm" onclick="addSelectedCompanies()">Add Selected →</button>
+          <button class="btn bo sm" onclick="searchCompanies(currentCampaignId)">↺ Refresh</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:12px;padding:8px 12px;background:rgba(212,137,90,0.05);border:1px solid rgba(212,137,90,0.15);border-radius:7px">
+        Note: Company size filter not available from JSearch API. Salary "Not disclosed" means no data returned.
+      </div>
+      <div id="search-results"></div>
+      <div id="load-more-section" style="display:none;text-align:center;padding:14px 0">
+        <button class="btn bo sm" onclick="loadMoreResults()" id="load-more-btn">Load More</button>
+        <div style="font-size:10.5px;color:var(--t3);margin-top:5px" id="page-info"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ch">
+      <div class="ct">Saved Companies</div>
+      <div style="font-size:11.5px;color:var(--t3)">Click name to manage contacts</div>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>Company</th><th>Industry</th><th>Location</th><th>Salary</th><th>Posted</th><th>Contacts</th><th>Responded</th><th>Actions</th></tr></thead>
+      <tbody id="comp-tb"><tr><td colspan="8"><div class="empty"><div class="em">⊞</div><p>No companies yet.</p></div></td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- COMPANY DETAIL -->
+<div class="pg" id="pg-company-detail">
+  <div class="back" onclick="backToCamp()">← Campaign</div>
+  <input type="hidden" id="comp-name-store">
+  <input type="hidden" id="comp-website-store">
+  <input type="hidden" id="comp-domain-store">
+  <div class="ph">
+    <div><div class="pt" id="comp-title">Company <em>Contacts</em></div><div class="ps" id="comp-sub"></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn bp sm" id="auto-find-btn" onclick="autoFindContacts()">⊛ Find Decision Makers</button>
+    </div>
+  </div>
+
+  <div class="card" id="ai-hint-card" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div>
+        <div class="ct">AI Decision Maker Suggestions</div>
+        <div style="font-size:12px;color:var(--t2);margin-top:4px">For <b id="ai-role" style="color:var(--accent)"></b> hiring. Click any title to auto-fill:</div>
+      </div>
+      <div id="domain-badge" style="font-size:11px;color:var(--t3);font-style:italic;font-family:'DM Serif Display',serif"></div>
+    </div>
+    <div id="ai-chips" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+  </div>
+
+  <div class="card">
+    <div class="ct" style="margin-bottom:16px">Contacts at this Company</div>
+    <div class="tw"><table>
+      <thead><tr><th>Name</th><th>Title</th><th>Email</th><th>Verified</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="cont-tb"><tr><td colspan="6"><div class="empty"><div class="em">⊙</div><p>No contacts yet.<br>Click Auto-Find or add manually.</p></div></td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- EMAIL SEQUENCES -->
+<div class="pg" id="pg-email-flow">
+  <div class="ph"><div><div class="pt">Email Sequences</div><div class="ps">Your automated cold outreach system</div></div></div>
+
+  <div class="card">
+    <div class="ct" style="margin-bottom:20px">Cold Outreach Sequence</div>
+    <div class="seq-wrap">
+      <div class="seq-step">
+        <div class="seq-line"></div>
+        <div class="seq-dot active">❄</div>
+        <div class="seq-label">Cold Email</div>
+        <div class="seq-day">Day 1</div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-line"></div>
+        <div class="seq-dot">↺</div>
+        <div class="seq-label">Follow Up</div>
+        <div class="seq-day">Day 3</div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-line"></div>
+        <div class="seq-dot">◎</div>
+        <div class="seq-label">Final Touch</div>
+        <div class="seq-day">Day 7</div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-line"></div>
+        <div class="seq-dot">⊕</div>
+        <div class="seq-label">Soft Reject</div>
+        <div class="seq-day">If declined</div>
+      </div>
+      <div class="seq-step">
+        <div class="seq-dot">◉</div>
+        <div class="seq-label">Close Out</div>
+        <div class="seq-day">Hard reject</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px;padding-top:20px;border-top:1px solid var(--dv)">
+      <div style="padding:16px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)">
+        <div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">❄ Cold Email</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.8">Company-specific opener · Pre-vetted candidate pitch · Soft 15-min CTA · Industry-aware language</div>
+      </div>
+      <div style="padding:16px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)">
+        <div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">↺ Day 3 Follow-up</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.8">References first email · New value angle · Different subject · Softer ask</div>
+      </div>
+      <div style="padding:16px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)">
+        <div style="font-size:10px;font-weight:700;color:#34D399;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">⊕ Soft Rejection Handler</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.8">Warm and professional · Acknowledges timing · Leaves door open · No pressure</div>
+      </div>
+      <div style="padding:16px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)">
+        <div style="font-size:10px;font-weight:700;color:#F87171;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">◉ Hard Rejection Response</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.8">Graceful exit · Referral ask · No bridges burned · Professional close</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ct" style="margin-bottom:14px">Generate Email Live</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div class="fm" style="flex:1"><label>Select Lead</label><select id="ef-lead-sel"><option value="">— Choose a lead —</option></select></div>
+      <button class="btn bo sm" onclick="loadEmailFlowLeads()">↺ Load</button>
+      <button class="btn bp sm" onclick="genEmailFromFlow()">Generate →</button>
+    </div>
+    <div id="ef-preview" style="margin-top:16px"></div>
+  </div>
+</div>
+
+<!-- ALL LEADS -->
+<div class="pg" id="pg-leads">
+  <div class="ph">
+    <div><div class="pt">All Leads</div><div class="ps">Every contact across all campaigns</div></div>
+    <button class="btn bs sm" onclick="dlCSV()">⬇ CSV</button>
+  </div>
+  <div class="card">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <select id="fl-c" onchange="loadAllLeads()" style="width:200px"><option value="">All Campaigns</option></select>
+      <select id="fl-s" onchange="loadAllLeads()" style="width:150px">
+        <option value="">All Status</option><option value="new">New</option>
+        <option value="emailed">Emailed</option><option value="responded">Responded</option>
+        <option value="soft_rejection">Soft Rejection</option><option value="rejected">Rejected</option>
+      </select>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>Name</th><th>Title</th><th>Company</th><th>Email</th><th>Verified</th><th>Campaign</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="leads-tb"><tr><td colspan="8"><div class="empty"><div class="em">⊙</div><p>No leads yet.</p></div></td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ROLE HIERARCHY -->
+<div class="pg" id="pg-hierarchy">
+  <div class="ph"><div><div class="pt">Role Hierarchy AI</div><div class="ps">Find who to contact for any role in any industry</div></div></div>
+  <div class="card">
+    <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:20px">
+      <div class="fm" style="flex:1"><label>Target Role</label><input type="text" id="hr-r" placeholder="Financial Analyst, Sales Director, Petroleum Engineer..."></div>
+      <button class="btn bp" onclick="checkH()">Analyze →</button>
+    </div>
+    <div id="hr-res" style="display:none">
+      <div class="div"></div>
+      <div style="font-size:12.5px;color:var(--t2);margin-bottom:12px">For companies hiring <b id="hr-rd" style="color:var(--accent)"></b>, contact:</div>
+      <div id="hr-ch" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .main -->
+
+<!-- ADD CONTACT MODAL -->
+<div class="mo" id="mo-contact">
+  <div class="modal" style="width:560px">
+    <div class="mh"><div class="mt">Add Contact</div><button class="mcl" onclick="cmo('mo-contact')">×</button></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:12px;padding:8px 12px;background:var(--ib);border-radius:7px;border:1px solid var(--ic)" id="mo-comp-nm">Adding contact</div>
+    <div id="email-found-box" style="display:none" class="vbox ok">
+      <div class="vt">✓ Email Found</div><div class="vem" id="email-found-val"></div>
+    </div>
+    <div class="fg">
+      <div class="fm"><label>First Name *</label><input type="text" id="cc-fn" placeholder="John" oninput="debounceEF()"></div>
+      <div class="fm"><label>Last Name *</label><input type="text" id="cc-ln" placeholder="Smith" oninput="debounceEF()"></div>
+      <div class="fm"><label>Job Title *</label><input type="text" id="cc-tt" placeholder="VP of Talent Acquisition"></div>
+      <div class="fm"><label>Company Domain</label><input type="text" id="cc-dom" placeholder="company.com" oninput="debounceEF()"></div>
+      <div class="fm"><label>Work Email</label>
+        <div style="display:flex;gap:6px"><input type="email" id="cc-em" placeholder="auto-found or enter manually" style="flex:1"><button class="btn bo sm" onclick="manualVerify()">Find</button></div>
+      </div>
+      <div class="fm"><label>LinkedIn URL — paste to auto-find email</label><input type="text" id="cc-li" placeholder="linkedin.com/in/johnsmith" oninput="debounceLinkedIn()" onpaste="setTimeout(debounceLinkedIn,100)"></div>
+      <div class="fm"><label>Hiring For</label><input type="text" id="cc-tr" placeholder="Financial Analyst"></div>
+      <div class="fm"><label>Location</label><input type="text" id="cc-lo" placeholder="New York, US"></div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn bp" onclick="addContact()">Save Contact →</button>
+      <button class="btn bo" onclick="cmo('mo-contact')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- EMAIL MODAL -->
+<div class="mo" id="mo-email">
+  <div class="modal" style="width:620px">
+    <div class="mh"><div class="mt">AI Email Generator</div><button class="mcl" onclick="cmo('mo-email')">×</button></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:12px;padding:10px 14px;background:var(--ib);border-radius:7px;border:1px solid var(--ic)" id="mo-lead-nm"></div>
+    <div id="mo-ver" style="margin-bottom:12px"></div>
+    <div class="etabs">
+      <button class="etab on" onclick="genEm('cold',this)">❄ Cold</button>
+      <button class="etab" onclick="genEm('followup1',this)">Day 3</button>
+      <button class="etab" onclick="genEm('followup2',this)">Day 7</button>
+      <button class="etab" onclick="genEm('soft_rejection',this)">Soft Reject</button>
+      <button class="etab" onclick="genEm('rejection',this)">Hard Reject</button>
+    </div>
+    <div id="em-content"><div class="ld">Generating email...</div></div>
+    <div class="div"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn bs sm" onclick="updSt('responded')">✓ Responded</button>
+      <button class="btn bw sm" onclick="updSt('soft_rejection')">Soft Rejection</button>
+      <button class="btn bd sm" onclick="updSt('rejected')">Rejected</button>
+      <button class="btn bo sm" onclick="cmo('mo-email')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT FILTERS MODAL -->
+<div class="mo" id="mo-filters">
+  <div class="modal" style="width:580px">
+    <div class="mh"><div class="mt">Edit Filters</div><button class="mcl" onclick="cmo('mo-filters')">×</button></div>
+    <div class="fg">
+      <div class="fm full"><label>Campaign Name</label><input type="text" id="ef-name"></div>
+      <div class="fm"><label>Target Role</label><input type="text" id="ef-role" oninput="debounceEFsal()"></div>
+      <div class="fm"><label>Location</label>
+        <select id="ef-loc">
+          <option value="United States">🇺🇸 United States</option>
+          <option value="New York, US">New York</option><option value="California, US">California</option>
+          <option value="Texas, US">Texas</option><option value="Florida, US">Florida</option>
+          <option value="Illinois, US">Illinois</option><option value="Washington, US">Washington</option>
+          <option value="Massachusetts, US">Massachusetts</option><option value="Georgia, US">Georgia</option>
+          <option value="United Kingdom">🇬🇧 United Kingdom</option>
+          <option value="London, UK">London</option><option value="Manchester, UK">Manchester</option>
+        </select>
+      </div>
+      <div class="fm"><label>Job Posted</label>
+        <select id="ef-date">
+          <option value="24h">24 Hours</option><option value="3days">3 Days</option>
+          <option value="week">Past Week</option><option value="month">Past Month</option>
+        </select>
+      </div>
+      <div class="fm"><label>Min Company Size</label><input type="number" id="ef-min"></div>
+      <div class="fm"><label>Max Company Size</label><input type="number" id="ef-max"></div>
+      <div class="fm"><label>Min Salary (USD)</label>
+        <input type="number" id="ef-sal">
+        <div class="sal-sug" id="ef-sal-sug" style="display:none">◆ <span id="ef-sal-text"></span></div>
+      </div>
+      <div class="fm"><label>Exclude Types</label><input type="text" id="ef-excl"></div>
+      <div class="fm full" style="flex-direction:row;gap:20px;flex-wrap:wrap;align-items:center">
+        <label class="crow"><input type="checkbox" id="ef-int"> Exclude Internships</label>
+        <label class="crow"><input type="checkbox" id="ef-rem"> Exclude Remote</label>
+        <label class="crow"><input type="checkbox" id="ef-app"> Exclude Apprenticeships</label>
+      </div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn bp" onclick="saveFiltersAndSearch()">Save & Search Again →</button>
+      <button class="btn bo" onclick="saveFiltersOnly()">Save Only</button>
+      <button class="btn bo" onclick="cmo('mo-filters')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- EDIT CONTACT MODAL -->
+<div class="mo" id="mo-edit-contact">
+  <div class="modal" style="width:520px">
+    <div class="mh"><div class="mt">✎ Edit Contact</div><button class="mcl" onclick="cmo('mo-edit-contact')">×</button></div>
+    <input type="hidden" id="ec-id">
+    <div class="fg">
+      <div class="fm"><label>First Name</label><input type="text" id="ec-fn"></div>
+      <div class="fm"><label>Last Name</label><input type="text" id="ec-ln"></div>
+      <div class="fm"><label>Job Title</label><input type="text" id="ec-tt"></div>
+      <div class="fm"><label>Work Email</label><input type="email" id="ec-em"></div>
+      <div class="fm"><label>LinkedIn URL</label><input type="text" id="ec-li"></div>
+      <div class="fm"><label>Location</label><input type="text" id="ec-lo"></div>
+      <div class="fm full"><label>Notes</label><textarea id="ec-nt" style="min-height:50px"></textarea></div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn bp" onclick="saveEditContact()">Save Changes →</button>
+      <button class="btn bo" onclick="cmo('mo-edit-contact')">Cancel</button>
+    </div>
+  </div>
+</div>
+<div class="notif" id="notif"></div>
+
+<script>
+let currentCampaignId=null,curComp=null,curLead=null,curLeadData=null;
+let searchResults=[],selCompanies=new Set(),currentPage=1;
+let isCreatingCampaign=false;
+
+function initTheme(){const t=localStorage.getItem('lf-t')||'dark';setT(t);}
+function setT(t){document.documentElement.setAttribute('data-theme',t);document.getElementById('tlbl').textContent=t==='dark'?'Light Mode':'Dark Mode';localStorage.setItem('lf-t',t);}
+function toggleT(){setT(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');}
+initTheme();
+
+function sp(p,el){
+  document.querySelectorAll('.pg').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
+  const pgEl=document.getElementById('pg-'+p);if(!pgEl)return;
+  pgEl.classList.add('active');
+  if(el)el.classList.add('on');
+  else{const m={'dashboard':0,'campaigns':1,'new-campaign':1,'campaign-detail':1,'company-detail':1,'leads':2,'email-flow':3,'hierarchy':4};const i=m[p];if(i!==undefined)document.querySelectorAll('.ni')[i]?.classList.add('on');}
+  if(p==='dashboard')loadDash();
+  if(p==='campaigns')loadCamps();
+  if(p==='leads'){loadAllLeads();popCampFl();}
+  if(p==='email-flow')loadEmailFlowLeads();
+}
+
+function ntf(msg,type='success'){const n=document.getElementById('notif');n.textContent=msg;n.className='notif show '+type;clearTimeout(n._t);n._t=setTimeout(()=>n.classList.remove('show'),3800);}
+function bdg(s){const m={new:'New',emailed:'Emailed',responded:'Responded',soft_rejection:'Soft Rejection',rejected:'Rejected'};const c={new:'bn',emailed:'be',responded:'br',soft_rejection:'bso',rejected:'brj'};return `<span class="bdg ${c[s]||'bn'}">${m[s]||s}</span>`;}
+function em(c,e,m){return `<tr><td colspan="${c}"><div class="empty"><div class="em">${e}</div><p>${m}</p></div></td></tr>`;}
+function esc(s){return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+function cmo(id){document.getElementById(id).classList.remove('show');}
+
+async function loadDash(){
+  try{
+    const s=await fetch('/leads/stats').then(r=>r.json());
+    document.getElementById('s-tot').textContent=s.total_leads||0;
+    document.getElementById('s-em').textContent=s.emailed||0;
+    document.getElementById('s-re').textContent=s.responded||0;
+    document.getElementById('s-so').textContent=s.soft_rejection||0;
+    const rt=s.emailed>0?Math.round(((s.responded||0)/s.emailed)*100):0;
+    document.getElementById('s-rt').textContent=rt+'%';
+    const leads=await fetch('/leads').then(r=>r.json());
+    const tb=document.getElementById('dash-tb');
+    if(!leads.length){tb.innerHTML=em(7,'◈','No leads yet. Create a campaign to get started.');return;}
+    tb.innerHTML=leads.slice(0,10).map(l=>`<tr>
+      <td><b>${l.full_name||'—'}</b></td>
+      <td style="font-size:11px;color:var(--t3)">${l.title||'—'}</td>
+      <td>${l.company||'—'}</td>
+      <td>${l.campaign_name?`<span class="cp">${l.campaign_name}</span>`:'<span style="color:var(--t3)">—</span>'}</td>
+      <td style="font-size:11.5px">${l.email||'<span style="color:var(--t3)">—</span>'}${l.email_verified?'<span class="bdg bv" style="margin-left:4px">✓</span>':''}</td>
+      <td>${bdg(l.status)}</td>
+      <td><button class="btn bo xs" onclick="openEmail(${l.id})">Email</button></td>
+    </tr>`).join('');
+  }catch(e){console.error(e);}
+}
+
+let salTimer=null;
+function debounceS(){clearTimeout(salTimer);salTimer=setTimeout(async()=>{
+  const role=document.getElementById('cn-role').value.trim();if(!role||role.length<3)return;
+  try{const d=await fetch(`/salary-suggestion?role=${encodeURIComponent(role)}`).then(r=>r.json());document.getElementById('cn-sal').value=d.suggested_salary;document.getElementById('sal-text').textContent=d.message;document.getElementById('sal-suggest').style.display='flex';}catch(e){}
+},1200);}
+
+async function createCampaign(){
+  if(isCreatingCampaign)return;
+  const name=document.getElementById('cn-name').value.trim();
+  const role=document.getElementById('cn-role').value.trim();
+  if(!name||!role){ntf('Campaign name and target role are required','error');return;}
+  isCreatingCampaign=true;
+  const btn=document.getElementById('create-camp-btn');btn.textContent='Creating...';btn.disabled=true;
+  try{
+    const res=await fetch('/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      name,target_role:role,target_location:document.getElementById('cn-loc').value,
+      company_size_min:parseInt(document.getElementById('cn-min').value)||50,
+      company_size_max:parseInt(document.getElementById('cn-max').value)||10000,
+      min_salary:parseInt(document.getElementById('cn-sal').value)||80000,
+      excluded_industries:document.getElementById('cn-excl').value.trim(),
+      exclude_intern:document.getElementById('cn-int').checked,
+      exclude_remote:document.getElementById('cn-rem').checked,
+      exclude_apprentice:document.getElementById('cn-app').checked,
+      job_date_filter:document.getElementById('cn-date').value,
+      notes:document.getElementById('cn-not').value.trim()
+    })}).then(r=>r.json());
+    ntf('Campaign created — searching companies...');
+    ['cn-name','cn-role','cn-not'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('sal-suggest').style.display='none';
+    openCampaign(res.id,name,role);
+  }catch(e){ntf('Error creating campaign','error');}
+  finally{isCreatingCampaign=false;btn.textContent='Create Campaign & Search Companies →';btn.disabled=false;}
+}
+
+async function loadCamps(){
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.ni')[1]?.classList.add('on');
+  const tb=document.getElementById('camp-tb');tb.innerHTML=em(8,'⏳','Loading...');
+  try{
+    const cs=await fetch('/campaigns').then(r=>r.json());
+    if(!cs.length){tb.innerHTML=em(8,'⊞','No campaigns yet.');return;}
+    tb.innerHTML=cs.map(c=>`<tr>
+      <td><b style="cursor:pointer;color:var(--accent)" onclick="openCampaign(${c.id},'${esc(c.name)}','${esc(c.target_role||'')}')">${c.name}</b>
+        <div style="margin-top:3px">${(c.excluded_industries||'').split(',').slice(0,3).map(i=>`<span class="ftag">${i.trim()}</span>`).join('')}</div></td>
+      <td>${c.target_role||'—'}</td>
+      <td style="font-size:11.5px">${c.target_location||'—'}</td>
+      <td style="color:var(--accent);font-weight:600;font-size:12px">$${((c.min_salary||0)/1000).toFixed(0)}k+</td>
+      <td><b>${c.total_companies||0}</b></td><td>${c.total_leads||0}</td>
+      <td style="color:#34D399;font-weight:600">${c.responded||0}</td>
+      <td style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="btn bp xs" onclick="openCampaign(${c.id},'${esc(c.name)}','${esc(c.target_role||'')}')">Open</button>
+        <button class="btn bo xs" onclick="dlCSV(${c.id})">CSV</button>
+        <button class="btn bd xs" onclick="delCamp(${c.id})">✕</button>
+      </td>
+    </tr>`).join('');
+  }catch(e){tb.innerHTML=em(8,'!','Error loading.');}
+}
+
+async function openCampaign(id,name,role){
+  currentCampaignId=id;selCompanies=new Set();searchResults=[];
+  document.querySelectorAll('.pg').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
+  document.getElementById('pg-campaign-detail').classList.add('active');
+  document.querySelectorAll('.ni')[1]?.classList.add('on');
+  const parts=name.split('—');
+  document.getElementById('cd-title').innerHTML=`${parts[0].trim()} <em>${parts.slice(1).join('—').trim()||''}</em>`;
+  document.getElementById('cd-sub').textContent=`Target role: ${role} · Salary filter applied · All exclusions active`;
+  document.getElementById('search-section').style.display='none';
+  await loadCompanies(id);searchCompanies(id);
+}
+
+async function searchCompanies(cid){
+  currentPage=1;searchResults=[];selCompanies=new Set();
+  const sec=document.getElementById('search-section');
+  const res=document.getElementById('search-results');
+  sec.style.display='block';
+  document.getElementById('search-title').textContent='Searching job boards...';
+  res.innerHTML='<div class="ld">Finding companies hiring right now...</div>';
+  document.getElementById('load-more-section').style.display='none';
+  try{
+    const d=await fetch('/search-jobs/'+cid+'?page=1').then(r=>r.json());
+    if(d.error&&!d.jobs?.length){res.innerHTML=`<div class="empty"><div class="em">!</div><p>${d.error}</p></div>`;document.getElementById('search-title').textContent='Search Results';return;}
+    searchResults=d.jobs||[];
+    document.getElementById('search-title').textContent=`Found ${searchResults.length} companies hiring now`;
+    if(!searchResults.length){res.innerHTML='<div class="empty"><div class="em">⊙</div><p>No results found.<br>Try Edit Filters → Past Month.</p></div>';return;}
+    renderResults();
+    document.getElementById('load-more-section').style.display='block';
+    document.getElementById('page-info').textContent=`Page 1 · ${searchResults.length} companies`;
+  }catch(e){res.innerHTML='<div class="empty"><div class="em">!</div><p>Search failed.</p></div>';}
+}
+
+async function loadMoreResults(){
+  const btn=document.getElementById('load-more-btn');btn.textContent='Loading...';btn.disabled=true;
+  currentPage++;
+  try{
+    const d=await fetch('/search-jobs/'+currentCampaignId+'?page='+currentPage).then(r=>r.json());
+    const ex=new Set(searchResults.map(j=>j.employer_name));
+    const u=(d.jobs||[]).filter(j=>!ex.has(j.employer_name));
+    searchResults=[...searchResults,...u];renderResults();
+    document.getElementById('page-info').textContent=`Page ${currentPage} · ${searchResults.length} total`;
+    document.getElementById('search-title').textContent=`${searchResults.length} companies hiring now`;
+  }catch(e){ntf('Error loading more','error');}
+  btn.textContent='Load More';btn.disabled=false;
+}
+
+function renderResults(){
+  document.getElementById('search-results').innerHTML=searchResults.map((j,i)=>`
+    <div class="jcard ${selCompanies.has(i)?'sel':''}" id="jc-${i}" onclick="toggleSel(${i})">
+      <input type="checkbox" class="jchk" ${selCompanies.has(i)?'checked':''} onclick="event.stopPropagation();toggleSel(${i})">
+      <div class="jlogo">${j.employer_logo?`<img src="${j.employer_logo}" onerror="this.parentNode.textContent='${(j.employer_name||'?')[0].toUpperCase()}'">`:j.employer_name?.[0]?.toUpperCase()||'?'}</div>
+      <div style="flex:1">
+        <div class="jname">${j.employer_name}</div>
+        <div class="jtitle">${j.job_title}</div>
+        <div class="jmeta">
+          <span class="jm">📍 ${j.location||'US'}</span>
+          <span class="jm">💰 ${j.salary_display}</span>
+          <span class="jm">⌚ ${j.job_posted}</span>
+          ${j.is_remote?'<span class="jm">Remote</span>':''}
+        </div>
+      </div>
+    </div>`).join('');
+  updateSelCount();
+}
+
+function toggleSel(i){if(selCompanies.has(i))selCompanies.delete(i);else selCompanies.add(i);const c=document.getElementById('jc-'+i);c.classList.toggle('sel',selCompanies.has(i));updateSelCount();}
+function selAll(){selCompanies=new Set(searchResults.map((_,i)=>i));renderResults();}
+function selNone(){selCompanies=new Set();renderResults();}
+function updateSelCount(){document.getElementById('sel-count').textContent=selCompanies.size+' selected';}
+
+async function addSelectedCompanies(){
+  if(!selCompanies.size){ntf('Select at least one company','error');return;}
+  const companies=Array.from(selCompanies).map(i=>{const j=searchResults[i];return{campaign_id:currentCampaignId,name:j.employer_name,industry:j.company_type||'',location:j.location||'',size_range:'',website:j.employer_website||'',job_title:j.job_title||'',salary_range:j.salary_display||'',job_posted:j.job_posted||'',source:'jsearch',notes:''};});
+  try{const r=await fetch('/companies/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:currentCampaignId,companies})}).then(r=>r.json());ntf(`✓ ${r.added} companies added`);selCompanies=new Set();searchResults=[];document.getElementById('search-section').style.display='none';loadCompanies(currentCampaignId);}
+  catch(e){ntf('Error adding companies','error');}
+}
+
+async function loadCompanies(cid){
+  try{
+    const cs=await fetch('/companies?campaign_id='+cid).then(r=>r.json());
+    const tb=document.getElementById('comp-tb');
+    if(!cs.length){tb.innerHTML=em(8,'⊞','No companies yet. Select from search results above.');return;}
+    tb.innerHTML=cs.map(c=>`<tr>
+      <td><b style="cursor:pointer;color:var(--accent)" onclick="openComp(${c.id},'${esc(c.name)}',${currentCampaignId},'${esc(c.website||'')}','${esc(c.salary_range||'')}')">${c.name}</b></td>
+      <td style="font-size:11.5px">${c.industry||'—'}</td>
+      <td style="font-size:11.5px">${c.location||'—'}</td>
+      <td style="font-size:11.5px;color:var(--accent)">${c.salary_range||'Not disclosed'}</td>
+      <td style="font-size:11.5px">${c.job_posted||'—'}</td>
+      <td><b>${c.total_contacts||0}</b></td>
+      <td style="color:#34D399;font-weight:600">${c.responded||0}</td>
+      <td style="display:flex;gap:5px">
+        <button class="btn bp xs" onclick="openComp(${c.id},'${esc(c.name)}',${currentCampaignId},'${esc(c.website||'')}')">Contacts</button>
+        <button class="btn bd xs" onclick="delComp(${c.id})">✕</button>
+      </td>
+    </tr>`).join('');
+  }catch(e){console.error(e);}
+}
+
+async function openComp(id,name,campId,website=''){
+  curComp=id;if(campId)currentCampaignId=campId;
+  document.querySelectorAll('.pg').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
+  document.getElementById('pg-company-detail').classList.add('active');
+  document.querySelectorAll('.ni')[1]?.classList.add('on');
+  document.getElementById('comp-title').innerHTML=`${name} <em>Contacts</em>`;
+  document.getElementById('comp-sub').textContent='Add decision makers who handle hiring';
+  document.getElementById('comp-name-store').value=name;
+  document.getElementById('comp-website-store').value=website||'';
+  document.getElementById('ai-hint-card').style.display='none';
+  loadContacts(id);loadAIChips(name,website);
+}
+
+async function loadAIChips(compName,website){
+  if(!currentCampaignId)return;
+  try{
+    const camp=await fetch('/campaigns/'+currentCampaignId).then(r=>r.json());
+    if(!camp?.target_role)return;
+    const role=camp.target_role;
+    document.getElementById('ai-role').textContent=role;
+    document.getElementById('cc-tr').value=role;
+    document.getElementById('ai-hint-card').style.display='block';
+    document.getElementById('ai-chips').innerHTML='<div style="font-size:11px;color:var(--t3)">Loading...</div>';
+    const h=await fetch('/role-hierarchy/'+encodeURIComponent(role)).then(r=>r.json());
+    document.getElementById('ai-chips').innerHTML=h.contact_titles.map((t,i)=>`
+      <span class="hchip" style="animation-delay:${i*0.06}s" onclick="document.getElementById('cc-tt').value='${esc(t)}';ntf('Title set: ${esc(t)}')">${t}</span>`).join('');
+    try{
+      const dl=await fetch(`/lookup-domain?company_name=${encodeURIComponent(compName||'')}&website=${encodeURIComponent(website||'')}`).then(r=>r.json());
+      if(dl.domain){document.getElementById('comp-domain-store').value=dl.domain;document.getElementById('cc-dom').value=dl.domain;document.getElementById('domain-badge').textContent=`${dl.domain}`;}
+    }catch(e){}
+  }catch(e){}
+}
+
+async function loadContacts(cid){
+  try{
+    const leads=await fetch('/leads?company_id='+cid).then(r=>r.json());
+    const tb=document.getElementById('cont-tb');
+    if(!leads.length){tb.innerHTML=em(6,'⊙','No contacts yet. Click Auto-Find or add manually.');return;}
+    tb.innerHTML=leads.map(l=>`<tr>
+      <td><b>${l.full_name||'—'}</b>${l.target_role?`<div style="font-size:10px;color:var(--t3)">Hiring: ${l.target_role}</div>`:''}</td>
+      <td style="font-size:11.5px">${l.title||'—'}</td>
+      <td style="font-size:11.5px">${l.email||'<span style="color:var(--t3)">—</span>'}</td>
+      <td>${l.email_verified?'<span class="bdg bv" title="SMTP verified — safe to send">✓ SMTP Verified</span>':'<span class="bdg buv" title="Click Verify to SMTP-check this email">Not checked</span>'}</td>
+      <td>${bdg(l.status)}</td>
+      <td style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="btn bp xs" onclick="openEmail(${l.id})">Email</button>
+        <button class="btn bo xs" onclick="openEditContact(${l.id})">✎ Edit</button>
+        <button class="btn bw xs" onclick="verLead(${l.id})" title="SMTP verify this email via Prospeo">⚡ Verify</button>
+        <button class="btn bd xs" onclick="delLead(${l.id})">✕</button>
+      </td>
+    </tr>`).join('');
+  }catch(e){}
+}
+
+function backToCamp(){
+  document.querySelectorAll('.pg').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
+  document.getElementById('pg-campaign-detail').classList.add('active');
+  document.querySelectorAll('.ni')[1]?.classList.add('on');
+  loadCompanies(currentCampaignId);
+}
+
+async function autoFindContacts(){
+  if(!curComp)return;
+  const btn=document.getElementById('auto-find-btn');
+  btn.textContent='🔍 Hunting...';btn.disabled=true;
+  ntf('Searching LinkedIn for decision makers...','warning');
+  try{
+    const domain=document.getElementById('comp-domain-store').value||'';
+    const url=domain?`/companies/${curComp}/auto-find-contacts?domain_override=${encodeURIComponent(domain)}`:`/companies/${curComp}/auto-find-contacts`;
+    const r=await fetch(url,{method:'POST'}).then(r=>r.json());
+    if(r.success){
+      ntf(`✓ ${r.message}`);
+      loadContacts(curComp);
+      loadDash();
+      // Show results summary
+      if(r.people && r.people.length > 0) showFoundPeople(r);
+    } else if(r.manual_mode){
+      showLinkedInHelper(r);
+    } else {
+      ntf(r.message||'No contacts found','error');
+    }
+  }catch(e){ntf('Search failed','error');}
+  finally{btn.textContent='⊛ Find Decision Makers';btn.disabled=false;}
+}
+
+function showFoundPeople(r){
+  const ex=document.getElementById('mo-found');if(ex)ex.remove();
+  const mo=document.createElement('div');
+  mo.id='mo-found';mo.className='mo show';
+  const people=r.people||[];
+  const rows=people.map(p=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--ib);border:1px solid var(--ic);border-radius:8px;margin-bottom:6px">
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--accent-soft);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--accent)">
+        ${p.avatar?`<img src="${p.avatar}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentNode.textContent='${(p.full_name||'?')[0]}'">`:p.full_name?.[0]||'?'}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--tx)">${p.full_name}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.title||'—'}</div>
+        ${p.location?`<div style="font-size:10px;color:var(--t4);margin-top:1px">📍 ${p.location}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        ${p.email && p.email!=='already exists'?`<span style="font-size:10px;color:#34D399;font-weight:600">✓ ${p.email}</span>`:''}
+        ${p.saved?'<span style="font-size:10px;color:var(--accent);font-weight:600">Saved ✓</span>':'<span style="font-size:10px;color:var(--t3)">Already exists</span>'}
+        ${p.linkedin_url?`<a href="${p.linkedin_url}" target="_blank" style="font-size:10px;color:var(--accent);text-decoration:none">LinkedIn →</a>`:''}
+      </div>
+    </div>`).join('');
+
+  mo.innerHTML=`
+    <div class="modal" style="width:580px">
+      <div class="mh">
+        <div class="mt">🦊 ${r.contacts_added} Decision Makers Found!</div>
+        <button class="mcl" onclick="document.getElementById('mo-found').remove()">×</button>
+      </div>
+      <div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:9px 12px;background:var(--ib);border-radius:7px;border:1px solid var(--ic)">
+        Found via LinkedIn · ${r.contacts_added} saved · ${r.contacts_skipped||0} already existed · Emails verified via Prospeo
+      </div>
+      <div style="max-height:380px;overflow-y:auto">${rows}</div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--dv)">
+        <button class="btn bp sm" onclick="document.getElementById('mo-found').remove()">Done →</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mo);
+}
+
+function showLinkedInHelper(r){
+  const ex=document.getElementById('mo-linkedin');if(ex)ex.remove();
+  const mo=document.createElement('div');
+  mo.id='mo-linkedin';mo.className='mo show';
+  const company=r.company_name||'';
+  const domain=r.domain||'';
+  const rows=(r.rows||[]).map(row=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--ib);border:1px solid var(--ic);border-radius:8px;margin-bottom:6px">
+      <div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--tx)">${row.title}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${company}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <a href="${row.linkedin_url}" target="_blank" style="text-decoration:none">
+          <button class="btn bp xs">LinkedIn →</button>
+        </a>
+        <a href="${row.google_url}" target="_blank" style="text-decoration:none">
+          <button class="btn bo xs">Google →</button>
+        </a>
+        <button class="btn bs xs" onclick="quickAddFromTitle('${row.title.replace(/'/g,"\'")}','${domain}')">+ Save</button>
+      </div>
+    </div>`).join('');
+
+  mo.innerHTML=`
+    <div class="modal" style="width:580px">
+      <div class="mh">
+        <div class="mt">🦊 Find Decision Makers — ${company}</div>
+        <button class="mcl" onclick="document.getElementById('mo-linkedin').remove()">×</button>
+      </div>
+      <div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px 12px;background:var(--ib);border-radius:8px;border:1px solid var(--ic);line-height:1.7">
+        LinkedIn API returned no results. Use <b style="color:var(--accent)">LinkedIn →</b> to search manually · Click <b style="color:#34D399">+ Save</b> to add with title pre-filled.
+      </div>
+      <div>${rows}</div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--dv)">
+        <button class="btn bo sm" onclick="document.getElementById('mo-linkedin').remove()">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mo);
+}
+
+function quickAddFromTitle(title, domain){
+  document.getElementById('mo-linkedin').remove();
+  document.getElementById('cc-tt').value=title;
+  if(domain) document.getElementById('cc-dom').value=domain;
+  openAddContact();
+  ntf('Title pre-filled — add name + LinkedIn URL for auto email find');
+}
+
+let efTimer=null;
+let liTimer=null;
+
+// Auto-trigger when LinkedIn URL is pasted — most reliable path
+function debounceLinkedIn(){
+  clearTimeout(liTimer);
+  liTimer=setTimeout(async()=>{
+    const li=document.getElementById('cc-li').value.trim();
+    if(!li||!li.includes('linkedin.com/in/'))return;
+    const fn=document.getElementById('cc-fn').value.trim();
+    const ln=document.getElementById('cc-ln').value.trim();
+    const existingEmail=document.getElementById('cc-em').value.trim();
+    if(existingEmail)return; // already have email
+    ntf('Finding email from LinkedIn URL...','warning');
+    try{
+      const result=await fetch('/verify-email',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({linkedin_url:li,first_name:fn,last_name:ln})
+      }).then(r=>r.json());
+      if(result?.found && result?.email){
+        document.getElementById('cc-em').value=result.email;
+        document.getElementById('email-found-val').textContent=result.email;
+        document.getElementById('email-found-box').style.display='block';
+        ntf('✓ Email found automatically: '+result.email);
+      } else {
+        // Try name+domain as fallback
+        const dom=document.getElementById('cc-dom').value.trim();
+        if(fn&&dom){
+          const r2=await fetch(`/find-email-by-name?first_name=${encodeURIComponent(fn)}&last_name=${encodeURIComponent(ln)}&domain=${encodeURIComponent(dom)}`).then(r=>r.json());
+          if(r2?.found&&r2?.email){
+            document.getElementById('cc-em').value=r2.email;
+            document.getElementById('email-found-val').textContent=r2.email;
+            document.getElementById('email-found-box').style.display='block';
+            ntf('✓ Email found via name+domain: '+r2.email);
+            return;
+          }
+        }
+        ntf('Not in database — you can enter email manually','warning');
+      }
+    }catch(e){}
+  },600);
+}
+
+function debounceEF(){clearTimeout(efTimer);efTimer=setTimeout(async()=>{
+  const fn=document.getElementById('cc-fn').value.trim();const ln=document.getElementById('cc-ln').value.trim();const dom=document.getElementById('cc-dom').value.trim();
+  if(!fn||!ln||!dom||dom.length<4)return;
+  try{const r=await fetch(`/find-email-by-name?first_name=${encodeURIComponent(fn)}&last_name=${encodeURIComponent(ln)}&domain=${encodeURIComponent(dom)}`).then(r=>r.json());
+    if(r.found&&r.email){document.getElementById('cc-em').value=r.email;document.getElementById('email-found-val').textContent=r.email;document.getElementById('email-found-box').style.display='block';}
+  }catch(e){}
+},1200);}
+
+async function manualVerify(){
+  const fn=document.getElementById('cc-fn').value.trim();
+  const ln=document.getElementById('cc-ln').value.trim();
+  const dom=document.getElementById('cc-dom').value.trim();
+  const li=document.getElementById('cc-li').value.trim();
+  const existingEmail=document.getElementById('cc-em').value.trim();
+
+  // If email already found, just verify it
+  if(existingEmail){
+    ntf('✓ Email already found: '+existingEmail,'success');
+    document.getElementById('email-found-val').textContent=existingEmail;
+    document.getElementById('email-found-box').style.display='block';
+    return;
+  }
+
+  ntf('Finding email via Prospeo...','warning');
+  let result;
+  if(li){
+    result=await fetch('/verify-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({linkedin_url:li,first_name:fn,last_name:ln})}).then(r=>r.json());
+  } else if(fn&&dom){
+    result=await fetch(`/find-email-by-name?first_name=${encodeURIComponent(fn)}&last_name=${encodeURIComponent(ln)}&domain=${encodeURIComponent(dom)}`).then(r=>r.json());
+  } else {
+    ntf('Paste LinkedIn URL OR enter name + domain','error');
+    return;
+  }
+
+  if(result?.found && result?.email){
+    document.getElementById('cc-em').value=result.email;
+    document.getElementById('email-found-val').textContent=result.email;
+    document.getElementById('email-found-box').style.display='block';
+    ntf('✓ Email found: '+result.email);
+  } else {
+    // Check if email was auto-guessed via name+domain pattern
+    if(existingEmail||document.getElementById('cc-em').value){
+      ntf('✓ Email pattern found — verify before sending','warning');
+    } else {
+      ntf('Email not in Prospeo database — enter manually','warning');
+    }
+  }
+}
+
+function openAddContact(){
+  ['cc-fn','cc-ln','cc-tt','cc-em','cc-li','cc-lo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('email-found-box').style.display='none';
+  const compName=document.getElementById('comp-name-store').value||'';
+  const domain=document.getElementById('comp-domain-store').value||'';
+  const role=document.getElementById('cc-tr')?.value||'';
+  document.getElementById('mo-comp-nm').textContent=`Adding contact at ${compName}`;
+  if(domain)document.getElementById('cc-dom').value=domain;
+  if(role)document.getElementById('cc-tr').value=role;
+  document.getElementById('mo-contact').classList.add('show');
+}
+
+async function addContact(){
+  const fn=document.getElementById('cc-fn').value.trim();const tt=document.getElementById('cc-tt').value.trim();
+  if(!fn||!tt){ntf('First name and title are required','error');return;}
+  const email=document.getElementById('cc-em').value.trim();const compName=document.getElementById('comp-name-store').value||'';
+  try{
+    await fetch('/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      first_name:fn,last_name:document.getElementById('cc-ln').value.trim(),title:tt,company:compName,
+      industry:'',location:document.getElementById('cc-lo').value.trim(),email,
+      linkedin_url:document.getElementById('cc-li').value.trim(),
+      target_role:document.getElementById('cc-tr').value.trim(),
+      campaign_id:currentCampaignId,company_id:curComp,notes:''
+    })});
+    ntf('✓ Contact added');cmo('mo-contact');
+    // Auto-verify email in background if email was provided
+    if(email){
+      const savedRes = await fetch('/leads?company_id='+curComp).then(r=>r.json());
+      const newest = savedRes[savedRes.length-1];
+      if(newest && newest.email===email && !newest.email_verified){
+        fetch('/leads/'+newest.id+'/verify-email',{method:'POST'})
+          .then(r=>r.json())
+          .then(vr=>{ if(vr.found){ ntf('✓ Email SMTP verified: '+vr.email); } loadContacts(curComp); })
+          .catch(()=>{});
+      }
+    }
+    loadContacts(curComp);loadDash();
+  }catch(e){ntf('Error','error');}
+}
+
+async function verLead(id){
+  ntf('SMTP checking email via Prospeo...','warning');
+  const r=await fetch('/leads/'+id+'/verify-email',{method:'POST'}).then(r=>r.json());
+  if(r.found){
+    ntf('✓ SMTP Verified: '+r.email);
+    loadContacts(curComp);
+  } else {
+    ntf(r.message||'Could not verify — email may be incorrect or Prospeo credits exhausted','error');
+  }
+}
+
+async function delCamp(id){if(!confirm('Delete this campaign?'))return;await fetch('/campaigns/'+id,{method:'DELETE'});ntf('Deleted');loadCamps();}
+async function delComp(id){if(!confirm('Delete this company and contacts?'))return;await fetch('/companies/'+id,{method:'DELETE'});ntf('Deleted');loadCompanies(currentCampaignId);}
+async function delLead(id){if(!confirm('Delete this contact?'))return;await fetch('/leads/'+id,{method:'DELETE'});ntf('Deleted');loadContacts(curComp);loadDash();}
+
+async function openEmail(id){
+  curLead=id;
+  try{curLeadData=await fetch('/leads/'+id).then(r=>r.json());}catch(e){curLeadData=null;}
+  document.getElementById('mo-lead-nm').textContent=curLeadData?`${curLeadData.full_name||''} · ${curLeadData.title||''} @ ${curLeadData.company||''}`:`Lead #${id}`;
+  const vs=document.getElementById('mo-ver');
+  if(curLeadData?.email_verified){vs.innerHTML=`<div class="vbox ok"><div class="vt">✓ Verified</div><div class="vem">${curLeadData.email}</div></div>`;}
+  else if(curLeadData?.email){vs.innerHTML=`<div class="vbox info"><div class="vt">Unverified</div><div style="font-size:12.5px;color:var(--t2);margin-bottom:8px">${curLeadData.email}</div><button class="btn bp sm" onclick="verInModal()">Verify</button></div>`;}
+  else{vs.innerHTML=`<div class="vbox info"><div class="vt">No Email</div><div style="font-size:12px;color:var(--t2)">Add via contact edit</div></div>`;}
+  document.getElementById('mo-email').classList.add('show');
+  document.getElementById('em-content').innerHTML='<div class="ld">Generating...</div>';
+  document.querySelectorAll('.etab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.etab')[0].classList.add('on');
+  genEm('cold',document.querySelectorAll('.etab')[0]);
+}
+
+async function verInModal(){
+  const btn=event.target;btn.textContent='Verifying...';btn.disabled=true;
+  const r=await fetch('/leads/'+curLead+'/verify-email',{method:'POST'}).then(r=>r.json());
+  if(r.found){document.getElementById('mo-ver').innerHTML=`<div class="vbox ok"><div class="vt">✓ Verified</div><div class="vem">${r.email}</div></div>`;ntf('✓ '+r.email);}
+  else{btn.textContent='Verify';btn.disabled=false;ntf(r.message||'Not found','error');}
+}
+
+async function genEm(type,btn){
+  document.querySelectorAll('.etab').forEach(t=>t.classList.remove('on'));btn.classList.add('on');
+  document.getElementById('em-content').innerHTML='<div class="ld">Writing email...</div>';
+  try{
+    const d=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:curLead,email_type:type})}).then(r=>r.json());
+    document.getElementById('em-content').innerHTML=`<div class="ep"><div class="esb">Subject: ${d.subject}</div><div class="ebo">${d.body}</div></div>`;
+  }catch(e){document.getElementById('em-content').innerHTML='<div style="color:var(--red);font-size:12px">Error. Try again.</div>';}
+}
+
+async function updSt(status){
+  if(!curLead)return;
+  await fetch('/leads/'+curLead+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+  const m={responded:'✓ Responded',soft_rejection:'Soft Rejection noted',rejected:'Rejected'};
+  ntf(m[status]||'Updated');loadDash();cmo('mo-email');if(curComp)loadContacts(curComp);
+}
+
+async function loadEmailFlowLeads(){
+  try{const leads=await fetch('/leads').then(r=>r.json());const sel=document.getElementById('ef-lead-sel');sel.innerHTML='<option value="">— Choose a lead —</option>'+leads.slice(0,20).map(l=>`<option value="${l.id}">${l.full_name} @ ${l.company}</option>`).join('');}catch(e){}
+}
+async function genEmailFromFlow(){
+  const id=document.getElementById('ef-lead-sel').value;if(!id){ntf('Select a lead','error');return;}
+  const preview=document.getElementById('ef-preview');preview.innerHTML='<div class="ld">Generating...</div>';
+  try{const d=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:parseInt(id),email_type:'cold'})}).then(r=>r.json());
+    preview.innerHTML=`<div class="ep"><div class="esb">Subject: ${d.subject}</div><div class="ebo">${d.body}</div></div>
+    <div style="margin-top:10px"><button class="btn bo sm" onclick="openEmail(${id})">Open Full Generator</button></div>`;}
+  catch(e){preview.innerHTML='<div style="color:var(--red);font-size:12px">Error</div>';}
+}
+
+async function loadAllLeads(){
+  const cid=document.getElementById('fl-c')?.value;const status=document.getElementById('fl-s')?.value;
+  let url='/leads';if(cid)url+='?campaign_id='+cid;
+  try{
+    let leads=await fetch(url).then(r=>r.json());if(status)leads=leads.filter(l=>l.status===status);
+    const tb=document.getElementById('leads-tb');
+    if(!leads.length){tb.innerHTML=em(8,'⊙','No leads match these filters.');return;}
+    tb.innerHTML=leads.map(l=>`<tr>
+      <td><b>${l.full_name||'—'}</b></td>
+      <td style="font-size:11px;color:var(--t3)">${l.title||'—'}</td>
+      <td>${l.company||'—'}</td>
+      <td style="font-size:11.5px">${l.email||'<span style="color:var(--t3)">—</span>'}</td>
+      <td>${l.email_verified?'<span class="bdg bv">✓</span>':'<span class="bdg buv">—</span>'}</td>
+      <td>${l.campaign_name?`<span class="cp">${l.campaign_name}</span>`:'<span style="color:var(--t3)">—</span>'}</td>
+      <td>${bdg(l.status)}</td>
+      <td style="display:flex;gap:5px">
+        <button class="btn bp xs" onclick="openEmail(${l.id})">Email</button>
+        <button class="btn bd xs" onclick="delLead(${l.id})">✕</button>
+      </td>
+    </tr>`).join('');
+  }catch(e){}
+}
+async function popCampFl(){try{const cs=await fetch('/campaigns').then(r=>r.json());const s=document.getElementById('fl-c');if(!s)return;s.innerHTML='<option value="">All Campaigns</option>'+cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');}catch(e){}}
+
+async function checkH(){
+  const role=document.getElementById('hr-r').value.trim();if(!role)return;
+  document.getElementById('hr-ch').innerHTML='<div class="ld">Analyzing...</div>';
+  document.getElementById('hr-res').style.display='block';
+  try{const d=await fetch('/role-hierarchy/'+encodeURIComponent(role)).then(r=>r.json());
+    document.getElementById('hr-rd').textContent=role;
+    document.getElementById('hr-ch').innerHTML=d.contact_titles.map((t,i)=>`<span class="hchip" style="animation-delay:${i*0.07}s">${t}</span>`).join('');}catch(e){}
+}
+
+let efSalTimer=null;
+function debounceEFsal(){clearTimeout(efSalTimer);efSalTimer=setTimeout(async()=>{
+  const role=document.getElementById('ef-role').value.trim();if(!role||role.length<3)return;
+  try{const d=await fetch(`/salary-suggestion?role=${encodeURIComponent(role)}`).then(r=>r.json());document.getElementById('ef-sal').value=d.suggested_salary;document.getElementById('ef-sal-text').textContent=d.message;document.getElementById('ef-sal-sug').style.display='flex';}catch(e){}
+},1200);}
+
+async function openEditFilters(){
+  try{const c=await fetch('/campaigns/'+currentCampaignId).then(r=>r.json());
+    document.getElementById('ef-name').value=c.name||'';document.getElementById('ef-role').value=c.target_role||'';
+    document.getElementById('ef-sal').value=c.min_salary||80000;document.getElementById('ef-min').value=c.company_size_min||50;
+    document.getElementById('ef-max').value=c.company_size_max||10000;document.getElementById('ef-excl').value=c.excluded_industries||'';
+    document.getElementById('ef-int').checked=!!c.exclude_intern;document.getElementById('ef-rem').checked=!!c.exclude_remote;document.getElementById('ef-app').checked=!!c.exclude_apprentice;
+    document.getElementById('ef-sal-sug').style.display='none';
+    document.getElementById('mo-filters').classList.add('show');}catch(e){ntf('Error loading filters','error');}
+}
+function getFilterData(){return{name:document.getElementById('ef-name').value.trim(),target_role:document.getElementById('ef-role').value.trim(),target_location:document.getElementById('ef-loc').value,company_size_min:parseInt(document.getElementById('ef-min').value)||50,company_size_max:parseInt(document.getElementById('ef-max').value)||10000,min_salary:parseInt(document.getElementById('ef-sal').value)||80000,excluded_industries:document.getElementById('ef-excl').value.trim(),exclude_intern:document.getElementById('ef-int').checked,exclude_remote:document.getElementById('ef-rem').checked,exclude_apprentice:document.getElementById('ef-app').checked,job_date_filter:document.getElementById('ef-date').value,notes:''};}
+async function saveFiltersOnly(){const data=getFilterData();if(!data.name||!data.target_role){ntf('Required','error');return;}await fetch('/campaigns/'+currentCampaignId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});ntf('Saved');cmo('mo-filters');}
+async function saveFiltersAndSearch(){const data=getFilterData();if(!data.name||!data.target_role){ntf('Required','error');return;}await fetch('/campaigns/'+currentCampaignId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});ntf('Saved — searching...');cmo('mo-filters');const p=data.name.split('—');document.getElementById('cd-title').innerHTML=`${p[0].trim()} <em>${p.slice(1).join('—').trim()}</em>`;searchCompanies(currentCampaignId);}
+
+function dlCSV(cid=null){let url='/leads/export/csv';if(cid)url+='?campaign_id='+cid;const a=document.createElement('a');a.href=url;a.download='leadflow_export.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);ntf('Downloading CSV...');}
+
+loadDash();
+
+// ── BUTTON RIPPLE ──
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.btn');
+  if (!btn) return;
+  const r = document.createElement('span');
+  r.className = 'ripple';
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px;`;
+  btn.appendChild(r);
+  setTimeout(() => r.remove(), 600);
+});
+
+// ── COUNTER ANIMATION ──
+function animateCounter(el, target) {
+  const duration = 800;
+  const start = performance.now();
+  const isPercent = el.textContent.includes('%');
+  function update(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = Math.round(eased * target);
+    el.textContent = current + (isPercent ? '%' : '');
+    if (progress < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+
+// Override loadDash to add counter animations
+const _origLoadDash = loadDash;
+async function loadDash() {
+  await _origLoadDash();
+  setTimeout(() => {
+    ['s-tot','s-em','s-re','s-so'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        const val = parseInt(el.textContent) || 0;
+        if (val > 0) animateCounter(el, val);
+      }
+    });
+    const rt = document.getElementById('s-rt');
+    if (rt) {
+      const val = parseInt(rt.textContent) || 0;
+      if (val > 0) animateCounter(rt, val);
+    }
+  }, 100);
+}
+
+
+// ═══ FOX MASCOT ═══
+const foxTags = ['on the hunt','finding leads','sniffing trails','ready to pounce','sharp eyes'];
+let foxTagIdx = 0;
+setInterval(() => {
+  foxTagIdx = (foxTagIdx + 1) % foxTags.length;
+  const el = document.getElementById('fox-tag');
+  if(el){el.style.opacity='0';setTimeout(()=>{el.textContent=foxTags[foxTagIdx];el.style.opacity='1';},300);}
+}, 4000);
+
+function foxBark(){
+  const el=document.getElementById('fox-tag');
+  if(el){el.textContent='on it!';setTimeout(()=>{el.textContent=foxTags[foxTagIdx];},1500);}
+}
+
+function launchFoxHunt(leadName){
+  const fox=document.createElement('div');
+  fox.className='fox-hunter';
+  fox.innerHTML=`<svg viewBox="0 0 160 80" width="160" height="80" xmlns="http://www.w3.org/2000/svg">
+    <!-- streaming tail back left -->
+    <g class="fox-run-tail">
+      <path d="M30 44 Q10 36 14 52 Q16 64 30 58 Q38 54 36 44Z" fill="#D4895A"/>
+      <path d="M12 50 Q11 62 26 58 Q32 55 28 48Z" fill="#F2E0C8"/>
+    </g>
+    <!-- body stretched geometric -->
+    <path d="M36 34 Q36 60 80 60 Q124 60 124 34 Q116 24 80 22 Q44 24 36 34Z" fill="#D4895A"/>
+    <!-- white belly -->
+    <ellipse cx="80" cy="50" rx="26" ry="12" fill="#F2E0C8"/>
+    <!-- head diamond forward -->
+    <path d="M106 10 L134 30 L112 48 L90 30 Z" fill="#D4895A"/>
+    <!-- ear back flat running -->
+    <polygon points="98,22 94,6 108,20" fill="#D4895A"/>
+    <polygon points="98,21 95,9 107,20" fill="#B85A20" opacity="0.6"/>
+    <!-- face white -->
+    <path d="M96 30 Q102 44 112 40 Q122 34 118 22 Q112 16 104 18 Q96 22 96 30Z" fill="#F2E0C8"/>
+    <!-- determined eye -->
+    <ellipse cx="114" cy="27" rx="4" ry="3.5" fill="#2C1A0E"/>
+    <circle cx="115" cy="26" r="1.4" fill="white"/>
+    <!-- sharp snout forward -->
+    <path d="M114 36 Q124 42 130 36 Q124 30 118 31Z" fill="#F2E0C8"/>
+    <polygon points="128,36 124,40 132,40" fill="#2C1A0E"/>
+    <!-- running legs -->
+    <g class="fox-leg-fl"><rect x="104" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g>
+    <g class="fox-leg-bl"><rect x="52" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g>
+    <g class="fox-leg-fr"><rect x="90" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g>
+    <g class="fox-leg-br"><rect x="64" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g>
+    <!-- speed lines -->
+    <line x1="2" y1="28" x2="28" y2="28" stroke="#F2E0C8" stroke-width="2" opacity="0.45" stroke-linecap="round"/>
+    <line x1="4" y1="38" x2="26" y2="38" stroke="#F2E0C8" stroke-width="1.5" opacity="0.3" stroke-linecap="round"/>
+    <line x1="8" y1="48" x2="26" y2="48" stroke="#F2E0C8" stroke-width="1" opacity="0.2" stroke-linecap="round"/>
+  </svg>`;
+  document.body.appendChild(fox);
+  setTimeout(()=>{
+    const badge=document.createElement('div');
+    badge.className='fox-catch';
+    badge.innerHTML=`<div class="fox-catch-title">Lead Caught!</div><div class="fox-catch-sub">${leadName||'They responded!'}</div>`;
+    document.body.appendChild(badge);
+    setTimeout(()=>badge.remove(),1400);
+  },900);
+  setTimeout(()=>fox.remove(),2400);
+  const tag=document.getElementById('fox-tag');
+  if(tag){tag.textContent='got one!';setTimeout(()=>{tag.textContent='on the hunt';},3000);}
+}
+
+const _origUpdSt=updSt;
+async function updSt(status){
+  await _origUpdSt(status);
+  if(status==='responded'){
+    const name=curLeadData?.full_name||'New Lead';
+    setTimeout(()=>launchFoxHunt(name),200);
+  }
+}
+
+
+// ── EDIT CONTACT ──
+async function openEditContact(id){
+  try{
+    const l=await fetch('/leads/'+id).then(r=>r.json());
+    document.getElementById('ec-id').value=id;
+    document.getElementById('ec-fn').value=l.first_name||'';
+    document.getElementById('ec-ln').value=l.last_name||'';
+    document.getElementById('ec-tt').value=l.title||'';
+    document.getElementById('ec-em').value=l.email||'';
+    document.getElementById('ec-li').value=l.linkedin_url||'';
+    document.getElementById('ec-lo').value=l.location||'';
+    document.getElementById('ec-nt').value=l.notes||'';
+    document.getElementById('mo-edit-contact').classList.add('show');
+  }catch(e){ntf('Error loading contact','error');}
+}
+
+async function saveEditContact(){
+  const id=document.getElementById('ec-id').value;
+  if(!id)return;
+  const body={
+    first_name:document.getElementById('ec-fn').value.trim(),
+    last_name:document.getElementById('ec-ln').value.trim(),
+    title:document.getElementById('ec-tt').value.trim(),
+    email:document.getElementById('ec-em').value.trim(),
+    linkedin_url:document.getElementById('ec-li').value.trim(),
+    location:document.getElementById('ec-lo').value.trim(),
+    notes:document.getElementById('ec-nt').value.trim()
+  };
+  try{
+    await fetch('/leads/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    ntf('✓ Contact updated');
+    cmo('mo-edit-contact');
+    loadContacts(curComp);
+    loadDash();
+  }catch(e){ntf('Error saving','error');}
+}
+
+// ── GLOBAL COMPANY SEARCH ──
+let searchTimer=null;
+async function globalSearch(q){
+  clearTimeout(searchTimer);
+  const dd=document.getElementById('search-results-dd');
+  if(!q||q.length<2){dd.innerHTML='<div style="padding:10px 12px;font-size:11px;color:var(--t3)">Type to search saved companies...</div>';return;}
+  dd.innerHTML='<div style="padding:10px 12px;font-size:11px;color:var(--t3)">Searching...</div>';
+  searchTimer=setTimeout(async()=>{
+    try{
+      const res=await fetch('/search-companies?q='+encodeURIComponent(q)).then(r=>r.json());
+      if(!res.length){
+        dd.innerHTML='<div style="padding:10px 12px;font-size:12px;color:var(--t3)">No saved companies match "'+q+'"</div>';
+        return;
+      }
+      dd.innerHTML=res.map(co=>`
+        <div onclick="selectSearchResult(${co.id},'${(co.name||'').replace(/'/g,"\'")}',${co.campaign_id||0},'${(co.website||'').replace(/'/g,"\'")}');return false"
+        style="padding:9px 12px;cursor:pointer;border-radius:6px;transition:background .15s;display:flex;justify-content:space-between;align-items:center"
+        onmouseover="this.style.background='var(--ch)'" onmouseout="this.style.background='transparent'">
+          <div>
+            <div style="font-size:12.5px;font-weight:600;color:var(--tx)">${co.name}</div>
+            <div style="font-size:10.5px;color:var(--t3);margin-top:1px">${co.campaign_name||'—'} · ${co.location||'—'}</div>
+          </div>
+          <span style="font-size:10px;color:var(--accent);font-weight:600">${co.total_contacts||0} contacts</span>
+        </div>`).join('');
+    }catch(e){
+      dd.innerHTML='<div style="padding:10px 12px;font-size:12px;color:var(--t3)">Error searching</div>';
+    }
+  },300);
+}
+
+function selectSearchResult(id,name,campId,website){
+  document.getElementById('global-search').value='';
+  document.getElementById('search-dropdown').style.display='none';
+  openComp(id,name,campId||currentCampaignId,website);
+}
+
+</script>
+</body>
+</html>
