@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeadFlow AI — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--rust:#D4895A;--rust2:#B85A20;--ease:cubic-bezier(0.22,1,0.36,1);}
+[data-theme="dark"]{--bg:#3A2E24;--bg2:#2E2318;--tx:#F2E0C8;--t2:rgba(242,224,200,0.62);--t3:rgba(242,224,200,0.38);--ib:rgba(0,0,0,0.2);--ic:rgba(212,137,90,0.22);--cb:rgba(212,137,90,0.18);--accent:#D4895A;--accent2:#B85A20;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(212,137,90,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(212,137,90,0.04) 1px,transparent 1px);background-size:44px 44px;pointer-events:none;}
+.glow{position:fixed;border-radius:50%;filter:blur(130px);pointer-events:none;}
+.g1{width:500px;height:500px;background:rgba(212,137,90,0.12);top:-150px;left:-80px;}
+.g2{width:350px;height:350px;background:rgba(184,90,32,0.08);bottom:-80px;right:-60px;}
+.box{background:var(--bg2);border:1px solid var(--cb);border-radius:16px;padding:40px;width:420px;position:relative;z-index:1;animation:fadeUp .4s var(--ease);}
+.box::before{content:'';display:block;height:2px;background:linear-gradient(90deg,var(--accent),transparent);margin:-40px -40px 32px;border-radius:16px 16px 0 0;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+.logo{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);letter-spacing:-.3px;margin-bottom:4px;}
+.logo-sub{font-size:10px;font-weight:600;color:var(--t3);letter-spacing:.16em;text-transform:uppercase;margin-bottom:28px;}
+.tabs{display:flex;gap:0;background:var(--ib);border:1px solid var(--ic);border-radius:8px;padding:3px;margin-bottom:24px;}
+.tab{flex:1;padding:7px;text-align:center;font-size:12.5px;font-weight:600;cursor:pointer;border-radius:6px;transition:all .18s;color:var(--t3);}
+.tab.on{background:var(--accent);color:#1A1208;}
+.fm{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+label{font-size:9.5px;font-weight:700;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;}
+input{background:var(--ib);border:1px solid var(--ic);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:13px;font-family:'Outfit',sans-serif;outline:none;width:100%;transition:border-color .2s,box-shadow .2s;}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(212,137,90,0.12);}
+input::placeholder{color:rgba(242,224,200,0.25);}
+.btn{width:100%;padding:11px;border-radius:8px;border:none;font-size:13.5px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;background:var(--accent);color:#1A1208;letter-spacing:.02em;transition:all .18s;margin-top:6px;}
+.btn:hover{background:var(--accent2);}
+.btn:disabled{opacity:0.5;cursor:not-allowed;}
+.err{background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);border-radius:7px;padding:9px 12px;font-size:12px;color:#F87171;margin-bottom:12px;display:none;}
+.err.show{display:block;}
+.ok{background:rgba(5,150,105,0.08);border:1px solid rgba(5,150,105,0.25);border-radius:7px;padding:9px 12px;font-size:12px;color:#34D399;margin-bottom:12px;display:none;}
+.ok.show{display:block;}
+.hint{font-size:11px;color:var(--t3);text-align:center;margin-top:16px;}
+#signup-form{display:none;}
+</style>
+</head>
+<body>
+<div class="glow g1"></div>
+<div class="glow g2"></div>
+<div class="box">
+  <div class="logo">LeadFlow AI</div>
+  <div class="logo-sub">B2B Lead Generation</div>
+  <div class="tabs">
+    <div class="tab on" onclick="showTab('login')">Sign In</div>
+    <div class="tab" onclick="showTab('signup')">Create Account</div>
+  </div>
+  <div id="err" class="err"></div>
+  <div id="ok" class="ok"></div>
+
+  <!-- LOGIN -->
+  <div id="login-form">
+    <div class="fm"><label>Username or Email</label><input type="text" id="l-user" placeholder="your username" autocomplete="username"></div>
+    <div class="fm"><label>Password</label><input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn" onclick="doLogin()" id="login-btn">Sign In →</button>
+  </div>
+
+  <!-- SIGNUP -->
+  <div id="signup-form">
+    <div class="fm"><label>Username</label><input type="text" id="s-user" placeholder="yourname" autocomplete="username"></div>
+    <div class="fm"><label>Email</label><input type="email" id="s-email" placeholder="you@company.com" autocomplete="email"></div>
+    <div class="fm"><label>Password</label><input type="password" id="s-pass" placeholder="min 6 characters" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSignup()"></div>
+    <button class="btn" onclick="doSignup()" id="signup-btn">Create Account →</button>
+  </div>
+
+  <div class="hint">LeadFlow AI · B2B Recruiting Outreach Platform</div>
+</div>
+
+<script>
+function showTab(t){
+  document.getElementById('login-form').style.display = t==='login'?'block':'none';
+  document.getElementById('signup-form').style.display = t==='signup'?'block':'none';
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('on',(t==='login'&&i===0)||(t==='signup'&&i===1)));
+  hideMsg();
+}
+
+function showErr(msg){const e=document.getElementById('err');e.textContent=msg;e.classList.add('show');document.getElementById('ok').classList.remove('show');}
+function showOk(msg){const e=document.getElementById('ok');e.textContent=msg;e.classList.add('show');document.getElementById('err').classList.remove('show');}
+function hideMsg(){document.getElementById('err').classList.remove('show');document.getElementById('ok').classList.remove('show');}
+
+async function doLogin(){
+  const user=document.getElementById('l-user').value.trim();
+  const pass=document.getElementById('l-pass').value;
+  if(!user||!pass){showErr('Please fill in all fields');return;}
+  const btn=document.getElementById('login-btn');btn.textContent='Signing in...';btn.disabled=true;
+  try{
+    const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:user,password:pass})}).then(r=>r.json());
+    if(r.success){
+      showOk('Welcome back, '+r.username+'! Redirecting...');
+      setTimeout(()=>window.location.href='/',1000);
+    } else {
+      showErr(r.detail||'Login failed');
+      btn.textContent='Sign In →';btn.disabled=false;
+    }
+  }catch(e){
+    showErr('Login failed — try again');
+    btn.textContent='Sign In →';btn.disabled=false;
+  }
+}
+
+async function doSignup(){
+  const user=document.getElementById('s-user').value.trim();
+  const email=document.getElementById('s-email').value.trim();
+  const pass=document.getElementById('s-pass').value;
+  if(!user||!email||!pass){showErr('Please fill in all fields');return;}
+  if(pass.length<6){showErr('Password must be at least 6 characters');return;}
+  const btn=document.getElementById('signup-btn');btn.textContent='Creating...';btn.disabled=true;
+  try{
+    const r=await fetch('/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:user,email,password:pass})}).then(r=>r.json());
+    if(r.success){
+      showOk('Account created! Welcome, '+r.username+'. Redirecting...');
+      setTimeout(()=>window.location.href='/',1000);
+    } else {
+      showErr(r.detail||'Signup failed');
+      btn.textContent='Create Account →';btn.disabled=false;
+    }
+  }catch(e){
+    showErr('Signup failed — try again');
+    btn.textContent='Create Account →';btn.disabled=false;
+  }
+}
+</script>
+</body>
+</html>
