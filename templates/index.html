@@ -556,6 +556,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
       <select id="fl-c" onchange="loadAllLeads()" style="width:200px"><option value="">All Campaigns</option></select>
       <select id="fl-s" onchange="loadAllLeads()" style="width:150px"><option value="">All Status</option><option value="new">New</option><option value="emailed">Emailed</option><option value="responded">Responded</option><option value="soft_rejection">Soft Rejection</option><option value="rejected">Rejected</option></select>
+      <input type="text" id="fl-search" placeholder="🔍 Search name, company, email..." oninput="loadAllLeads()" style="flex:1;min-width:200px">
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
       <label class="crow" style="font-size:12px;font-weight:600;color:var(--t2)"><input type="checkbox" id="sel-all-leads" onchange="toggleAllLeads(this.checked)" style="width:14px;height:14px;accent-color:var(--accent)"> Select All</label>
@@ -898,6 +899,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
         <input type="file" id="email-attachment" style="display:none" accept=".pdf,.doc,.docx,.txt,.png,.jpg" onchange="showAttachment(this)">
       </label>
       <span id="attachment-name" style="font-size:11px;color:var(--t3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <span id="attachment-del" style="display:none;cursor:pointer;color:var(--red);font-size:13px;font-weight:700" onclick="clearAttachment()" title="Remove attachment">✕</span>
       <div style="width:1px;height:20px;background:var(--dv)"></div>
       <button class="btn bs sm" onclick="updSt('responded')">✓ Responded</button>
       <button class="btn bw sm" onclick="updSt('soft_rejection')">Soft Rejection</button>
@@ -1310,6 +1312,7 @@ async function openEmail(id){
   else{vs.innerHTML=`<div class="vbox info"><div class="vt">No Email</div><div style="font-size:12px;color:var(--t2)">Add via contact edit</div></div>`;}
   const att=document.getElementById('email-attachment');if(att)att.value='';
   const attName=document.getElementById('attachment-name');if(attName)attName.textContent='';
+  const attDel=document.getElementById('attachment-del');if(attDel)attDel.style.display='none';
   document.getElementById('mo-email').classList.add('show');
   document.getElementById('em-content').innerHTML='<div class="ld">Generating...</div>';
   document.querySelectorAll('.etab').forEach(t=>t.classList.remove('on'));document.querySelectorAll('.etab')[0].classList.add('on');
@@ -1321,7 +1324,7 @@ async function verInModal(){const btn=event.target;btn.textContent='Verifying...
 async function genEm(type,btn){
   document.querySelectorAll('.etab').forEach(t=>t.classList.remove('on'));btn.classList.add('on');
   document.getElementById('em-content').innerHTML='<div class="ld">Writing email...</div>';
-  const sb=document.getElementById('send-email-btn');if(sb){sb.textContent='&#9889; Send Email';sb.disabled=false;sb.style.background='#2E8B57';sb.style.color='#fff';}
+  const sb=document.getElementById('send-email-btn');if(sb){sb.innerHTML='⚡ Send Email';sb.disabled=false;sb.style.background='#2E8B57';sb.style.color='#fff';}
   try{
     const scenario=document.getElementById('email-scenario')?.value?.trim()||'';
     const d=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:curLead,email_type:type,scenario:scenario||null})}).then(r=>r.json());
@@ -1332,16 +1335,39 @@ async function genEm(type,btn){
 
 function copyEmail(){const subject=document.getElementById('em-subject')?.value||'',body=document.getElementById('em-body')?.value||'';const full=`Subject: ${subject}\n\n${body}`;navigator.clipboard.writeText(full).then(()=>ntf('✓ Copied')).catch(()=>{const ta=document.createElement('textarea');ta.value=full;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();ntf('✓ Copied');});}
 
-async function updSt(status){if(!curLead)return;await fetch('/leads/'+curLead+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});const m={responded:'✓ Responded',soft_rejection:'Soft Rejection noted',rejected:'Rejected'};ntf(m[status]||'Updated');loadDash();cmo('mo-email');if(curComp)loadContacts(curComp);if(status==='responded'){const name=curLeadData?.full_name||'Lead';setTimeout(()=>launchFoxHunt(name),200);}}
+async function updSt(status){
+  if(!curLead)return;
+  const name=curLeadData?.full_name||'Lead';
+  await fetch('/leads/'+curLead+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+  const m={responded:'✓ Responded',soft_rejection:'Soft Rejection noted',rejected:'Rejected'};
+  ntf(m[status]||'Updated');
+  loadDash();
+  cmo('mo-email');
+  if(curComp)loadContacts(curComp);
+  if(status==='responded'){
+    setTimeout(()=>launchFoxHunt(name),300);
+  }
+}
 
 async function loadEmailFlowLeads(){try{const leads=await fetch('/leads').then(r=>r.json());const sel=document.getElementById('ef-lead-sel');sel.innerHTML='<option value="">Choose a lead</option>'+leads.slice(0,20).map(l=>`<option value="${l.id}">${l.full_name} @ ${l.company}</option>`).join('');}catch(e){}}
 async function genEmailFromFlow(){const id=document.getElementById('ef-lead-sel').value;if(!id){ntf('Select a lead','error');return;}const preview=document.getElementById('ef-preview');preview.innerHTML='<div class="ld">Generating...</div>';try{const d=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:parseInt(id),email_type:'cold'})}).then(r=>r.json());preview.innerHTML=`<div class="ep"><div class="esb">Subject: ${d.subject}</div><div style="font-size:13px;line-height:1.8;color:var(--t2);white-space:pre-wrap">${d.body}</div></div><div style="margin-top:10px"><button class="btn bo sm" onclick="openEmail(${id})">Open Full Generator</button></div>`;}catch(e){preview.innerHTML='<div style="color:var(--red);font-size:12px">Error</div>';}}
 
 async function loadAllLeads(){
   const cid=document.getElementById('fl-c')?.value,status=document.getElementById('fl-s')?.value;
+  const q=(document.getElementById('fl-search')?.value||'').toLowerCase().trim();
   let url='/leads';if(cid)url+='?campaign_id='+cid;
-  try{let leads=await fetch(url).then(r=>r.json());if(status)leads=leads.filter(l=>l.status===status);const tb=document.getElementById('leads-tb');if(!leads.length){tb.innerHTML=em(9,'&#8857;','No leads match filters.');return;}selectedLeads=new Set();updateBulkUI();
-    tb.innerHTML=leads.map(l=>`<tr><td><input type="checkbox" class="lead-chk" data-id="${l.id}" onchange="toggleLeadSel(${l.id},this.checked)" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer"></td><td><b>${l.full_name||'—'}</b></td><td style="font-size:11px;color:var(--t3)">${l.title||'—'}</td><td>${l.company||'—'}</td><td style="font-size:11.5px">${l.email||'<span style="color:var(--t3)">—</span>'}</td><td>${l.email_verified?'<span class="bdg bv">✓</span>':'<span class="bdg buv">—</span>'}</td><td>${l.campaign_name?`<span class="cp">${l.campaign_name}</span>`:'<span style="color:var(--t3)">—</span>'}</td><td>${bdg(l.status)}</td><td style="display:flex;gap:5px"><button class="btn bp xs" onclick="openEmail(${l.id})">Email</button><button class="btn bo xs" onclick="openLinkedIn('${l.linkedin_url||''}','${(l.full_name||'').replace(/'/g,"\\'")}','${(l.company||'').replace(/'/g,"\\'")}')">in</button><button class="btn bd xs" onclick="delLead(${l.id})">&#10005;</button></td></tr>`).join('');}catch(e){}}
+  try{let leads=await fetch(url).then(r=>r.json());
+    if(status)leads=leads.filter(l=>l.status===status);
+    if(q)leads=leads.filter(l=>
+      (l.full_name||'').toLowerCase().includes(q)||
+      (l.company||'').toLowerCase().includes(q)||
+      (l.email||'').toLowerCase().includes(q)||
+      (l.title||'').toLowerCase().includes(q)
+    );
+    const tb=document.getElementById('leads-tb');if(!leads.length){tb.innerHTML=em(9,'&#8857;','No leads match filters.');return;}selectedLeads=new Set();updateBulkUI();
+    tb.innerHTML=leads.map(l=>`<tr><td><input type="checkbox" class="lead-chk" data-id="${l.id}" onchange="toggleLeadSel(${l.id},this.checked)" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer"></td><td><b>${l.full_name||'—'}</b></td><td style="font-size:11px;color:var(--t3)">${l.title||'—'}</td><td>${l.company||'—'}</td><td style="font-size:11.5px">${l.email||'<span style="color:var(--t3)">—</span>'}</td><td>${l.email_verified?'<span class="bdg bv">✓</span>':'<span class="bdg buv">—</span>'}</td><td>${l.campaign_name?`<span class="cp">${l.campaign_name}</span>`:'<span style="color:var(--t3)">—</span>'}</td><td>${bdg(l.status)}</td><td style="display:flex;gap:5px"><button class="btn bp xs" onclick="openEmail(${l.id})">Email</button><button class="btn bo xs" onclick="openLinkedIn('${l.linkedin_url||''}','${(l.full_name||'').replace(/'/g,"\\'")}','${(l.company||'').replace(/'/g,"\\'")}')">in</button><button class="btn bd xs" onclick="delLead(${l.id})">&#10005;</button></td></tr>`).join('');
+  }catch(e){}
+}
 
 async function popCampFl(){try{const cs=await fetch('/campaigns').then(r=>r.json());const s=document.getElementById('fl-c');if(!s)return;s.innerHTML='<option value="">All Campaigns</option>'+cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');}catch(e){}}
 async function popCampFq(){try{const cs=await fetch('/campaigns').then(r=>r.json());const s=document.getElementById('fq-camp');if(!s)return;s.innerHTML='<option value="">All Campaigns</option>'+cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');}catch(e){}}
@@ -1361,7 +1387,19 @@ function dlCSV(cid=null){let url='/leads/export/csv';if(cid)url+='?campaign_id='
 let selectedLeads=new Set();
 function toggleLeadSel(id,checked){if(checked)selectedLeads.add(id);else selectedLeads.delete(id);updateBulkUI();}
 function toggleAllLeads(checked){document.querySelectorAll('.lead-chk').forEach(cb=>{cb.checked=checked;const id=parseInt(cb.dataset.id);if(checked)selectedLeads.add(id);else selectedLeads.delete(id);});updateBulkUI();}
-function updateBulkUI(){const count=selectedLeads.size;const countEl=document.getElementById('sel-leads-count');const bulkBtn=document.getElementById('bulk-del-btn');if(countEl)countEl.textContent=count>0?count+' selected':'0 selected';if(bulkBtn)bulkBtn.style.display=count>0?'inline-flex':'none';const sa=document.getElementById('sel-all-leads');if(sa){const total=document.querySelectorAll('.lead-chk').length;sa.checked=total>0&&count===total;sa.indeterminate=count>0&&count<total;}}
+function updateBulkUI(){
+  const count=selectedLeads.size;
+  const countEl=document.getElementById('sel-leads-count');
+  const bulkBtn=document.getElementById('bulk-del-btn');
+  const statusSel=document.getElementById('bulk-status-sel');
+  const statusBtn=document.getElementById('bulk-status-btn');
+  if(countEl)countEl.textContent=count>0?count+' selected':'0 selected';
+  if(bulkBtn)bulkBtn.style.display=count>0?'inline-flex':'none';
+  if(statusSel)statusSel.style.display=count>0?'inline-block':'none';
+  if(statusBtn)statusBtn.style.display=count>0?'inline-flex':'none';
+  const sa=document.getElementById('sel-all-leads');
+  if(sa){const total=document.querySelectorAll('.lead-chk').length;sa.checked=total>0&&count===total;sa.indeterminate=count>0&&count<total;}
+}
 async function bulkDeleteLeads(){if(!selectedLeads.size)return;if(!confirm(`Delete ${selectedLeads.size} selected leads?`))return;ntf('Deleting...','warning');let deleted=0;for(const id of Array.from(selectedLeads)){try{await fetch('/leads/'+id,{method:'DELETE'});deleted++;}catch(e){}}selectedLeads=new Set();ntf(`✓ ${deleted} leads deleted`);loadAllLeads();loadDash();}
 async function deleteAllLeads(){const leads=await fetch('/leads').then(r=>r.json());if(!leads.length){ntf('No leads','error');return;}if(!confirm(`Delete ALL ${leads.length} leads?`))return;ntf('Deleting all...','warning');let deleted=0;for(const l of leads){try{await fetch('/leads/'+l.id,{method:'DELETE'});deleted++;}catch(e){}}ntf(`✓ All ${deleted} deleted`);loadAllLeads();loadDash();}
 
@@ -1405,7 +1443,34 @@ async function saveEditContact(){const id=document.getElementById('ec-id').value
 const foxTags=['on the hunt','finding leads','sniffing trails','ready to pounce'];let foxTagIdx=0;
 setInterval(()=>{foxTagIdx=(foxTagIdx+1)%foxTags.length;const el=document.getElementById('fox-tag');if(el){el.style.opacity='0';setTimeout(()=>{el.textContent=foxTags[foxTagIdx];el.style.opacity='1';},300);}},4000);
 function foxBark(){const el=document.getElementById('fox-tag');if(el){el.textContent='on it!';setTimeout(()=>{el.textContent=foxTags[foxTagIdx];},1500);}}
-function launchFoxHunt(leadName){const fox=document.createElement('div');fox.className='fox-hunter';fox.innerHTML=`<svg viewBox="0 0 160 80" width="160" height="80"><path d="M30 44 Q10 36 14 52 Q16 64 30 58 Q38 54 36 44Z" fill="#D4895A"/><path d="M36 34 Q36 60 80 60 Q124 60 124 34 Q116 24 80 22 Q44 24 36 34Z" fill="#D4895A"/><ellipse cx="80" cy="50" rx="26" ry="12" fill="#F2E0C8"/><ellipse cx="114" cy="27" rx="4" ry="3.5" fill="#2C1A0E"/><g class="fox-leg-fl"><rect x="104" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g><g class="fox-leg-bl"><rect x="52" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g><g class="fox-leg-fr"><rect x="90" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g><g class="fox-leg-br"><rect x="64" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g></svg>`;document.body.appendChild(fox);setTimeout(()=>{const badge=document.createElement('div');badge.className='fox-catch';badge.innerHTML=`<div class="fox-catch-title">Lead Caught!</div><div class="fox-catch-sub">${leadName||'They responded!'}</div>`;document.body.appendChild(badge);setTimeout(()=>badge.remove(),1400);},900);setTimeout(()=>fox.remove(),2400);const tag=document.getElementById('fox-tag');if(tag){tag.textContent='got one!';setTimeout(()=>{tag.textContent='on the hunt';},3000);}}
+function launchFoxHunt(leadName){
+  const existing=document.getElementById('fox-hunt-popup');if(existing)existing.remove();
+  const popup=document.createElement('div');popup.id='fox-hunt-popup';
+  popup.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:100000;background:var(--bg2);border:2px solid var(--accent);border-radius:20px;padding:32px 40px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.6);animation:foxPopIn .4s cubic-bezier(0.34,1.56,0.64,1) forwards;min-width:280px;';
+  popup.innerHTML=`
+    <div style="font-size:56px;margin-bottom:8px;animation:foxBob 0.8s ease-in-out infinite">🦊</div>
+    <div style="font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);margin-bottom:6px">Lead Caught!</div>
+    <div style="font-size:13px;color:var(--t2);font-weight:600;letter-spacing:.04em">${leadName||'They responded!'}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">Flo is on fire 🔥</div>
+  `;
+  // Add keyframe if not already added
+  if(!document.getElementById('fox-pop-style')){
+    const s=document.createElement('style');s.id='fox-pop-style';
+    s.textContent='@keyframes foxPopIn{0%{transform:translate(-50%,-50%) scale(0);opacity:0;}60%{transform:translate(-50%,-50%) scale(1.08);}100%{transform:translate(-50%,-50%) scale(1);opacity:1;}}@keyframes foxPopOut{0%{transform:translate(-50%,-50%) scale(1);opacity:1;}100%{transform:translate(-50%,-50%) scale(0.8);opacity:0;}}';
+    document.head.appendChild(s);
+  }
+  document.body.appendChild(popup);
+  // Click to dismiss
+  popup.onclick=()=>popup.remove();
+  // Auto dismiss after 2.5s
+  setTimeout(()=>{
+    popup.style.animation='foxPopOut .3s ease forwards';
+    setTimeout(()=>popup.remove(),300);
+  },2500);
+  // Update Flo tagline
+  const tag=document.getElementById('fox-tag');
+  if(tag){tag.textContent='got one! 🎉';setTimeout(()=>{tag.textContent='on the hunt';},3000);}
+}
 
 function doLogout(){fetch('/auth/logout',{method:'POST'}).then(()=>window.location.href='/login');}
 function loadCurrentUser(){fetch('/auth/me').then(r=>r.json()).then(u=>{const el=document.getElementById('sidebar-user');if(el&&u.username)el.textContent='Signed in as '+u.username;}).catch(()=>{});}
@@ -1625,11 +1690,23 @@ async function scanReplies(){
 // ── FILE ATTACHMENT ──────────────────────────────────────────────
 function showAttachment(input){
   const nameEl=document.getElementById('attachment-name');
+  const delEl=document.getElementById('attachment-del');
   if(input.files&&input.files[0]){
     const fname=input.files[0].name;
     if(nameEl)nameEl.textContent=fname.length>20?fname.substring(0,17)+'...':fname;
+    if(delEl)delEl.style.display='inline';
     ntf('📎 Attached: '+fname,'warning');
   }
+}
+
+function clearAttachment(){
+  const att=document.getElementById('email-attachment');
+  const nameEl=document.getElementById('attachment-name');
+  const delEl=document.getElementById('attachment-del');
+  if(att)att.value='';
+  if(nameEl)nameEl.textContent='';
+  if(delEl)delEl.style.display='none';
+  ntf('Attachment removed');
 }
 
 // ── OVERRIDE sendEmailNow to support attachments ─────────────────
@@ -2209,20 +2286,153 @@ async function loadTemplateById(id){
     const r=await fetch('/email-templates').then(r=>r.json());
     const t=(r.templates||[]).find(x=>x.id===id);
     if(!t){ntf('Template not found','error');return;}
+
+    // If email modal already open with a lead — load directly
     const subEl=document.getElementById('em-subject');
     const bodyEl=document.getElementById('em-body');
-    if(subEl&&bodyEl){
+    const modal=document.getElementById('mo-email');
+    if(subEl&&bodyEl&&curLead&&modal&&modal.classList.contains('show')){
       subEl.value=t.subject||'';
       bodyEl.value=t.body||'';
       fetch('/email-templates/'+id+'/use',{method:'PUT'});
       ntf('✓ Template loaded');
-      const modal=document.getElementById('mo-email');
-      if(modal&&!modal.classList.contains('show'))modal.classList.add('show');
-    }else{
-      navigator.clipboard.writeText((t.subject?'Subject: '+t.subject+'\n\n':'')+t.body).then(()=>ntf('✓ Copied to clipboard'));
-      fetch('/email-templates/'+id+'/use',{method:'PUT'});
+      return;
     }
+
+    // Show picker modal with two tabs
+    const existing=document.getElementById('mo-tpl-pick');
+    if(existing)existing.remove();
+
+    const [leads,camps]=await Promise.all([
+      fetch('/leads').then(r=>r.json()),
+      fetch('/campaigns').then(r=>r.json())
+    ]);
+
+    const mo=document.createElement('div');
+    mo.id='mo-tpl-pick';mo.className='mo show';
+    mo.innerHTML=`<div class="modal" style="width:520px;max-width:95vw">
+      <div class="mh"><div class="mt">📋 Use Template: ${t.name}</div><button class="mcl" onclick="document.getElementById('mo-tpl-pick').remove()">&#215;</button></div>
+
+      <div class="tabs" style="margin-bottom:14px">
+        <div class="tab on" id="tpl-tab-single" onclick="switchTplTab('single')" style="cursor:pointer;user-select:none">👤 Single Lead</div>
+        <div class="tab" id="tpl-tab-bulk" onclick="switchTplTab('bulk')" style="cursor:pointer;user-select:none">⚡ Bulk Send</div>
+      </div>
+
+      <!-- Single Lead Tab -->
+      <div id="tpl-panel-single">
+        <input type="text" id="tpl-lead-search" placeholder="🔍 Search name, company, email..." oninput="filterTplLeads()" style="width:100%;margin-bottom:10px">
+        <div id="tpl-lead-list" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+          ${leads.map(l=>`<div class="tpl-lead-row"
+            data-name="${(l.full_name||'').toLowerCase()}"
+            data-company="${(l.company||'').toLowerCase()}"
+            data-email="${(l.email||'').toLowerCase()}"
+            style="padding:10px 12px;background:var(--ib);border:1px solid var(--ic);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center"
+            onclick="applyTemplateToLead(${id},'${(t.subject||'').replace(/'/g,"\\'")}',${JSON.stringify(t.body||'').replace(/\//g,'\\/')},${l.id},'${(l.full_name||'').replace(/'/g,"\\'")}')">
+            <div>
+              <div style="font-size:13px;font-weight:600">${l.full_name||'—'}</div>
+              <div style="font-size:11px;color:var(--t3)">${l.title||''} ${l.company?'@ '+l.company:''}</div>
+            </div>
+            <div style="font-size:11px;color:var(--t3)">${l.email||'no email'}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Bulk Send Tab -->
+      <div id="tpl-panel-bulk" style="display:none">
+        <div style="font-size:12px;color:var(--t2);margin-bottom:12px;padding:10px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)">
+          This will send the template to all <b>New</b> leads in the selected campaign. AI personalization is applied to each email.
+        </div>
+        <div class="fm" style="margin-bottom:12px">
+          <label>Select Campaign</label>
+          <select id="tpl-bulk-camp" style="width:100%">
+            <option value="">— Choose a campaign —</option>
+            ${(Array.isArray(camps)?camps:camps.campaigns||[]).map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fm" style="margin-bottom:14px">
+          <label>Context / Pitch (optional)</label>
+          <textarea id="tpl-bulk-context" placeholder="e.g. We are LeadFlow AI — pitching to staffing firms..." style="width:100%;height:70px;resize:none;background:var(--ib);border:1px solid var(--ic);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:12px;font-family:'Outfit',sans-serif"></textarea>
+        </div>
+        <div id="tpl-bulk-preview" style="font-size:12px;color:var(--t3);margin-bottom:12px"></div>
+        <button class="btn bp" style="width:100%" onclick="bulkSendTemplate(${id},'${(t.subject||'').replace(/'/g,"\\'")}',${JSON.stringify(t.body||'').replace(/\//g,'\\/')})">⚡ Send to All Eligible Leads →</button>
+      </div>
+    </div>`;
+    mo.onclick=e=>{if(e.target===mo)mo.remove();};
+    document.body.appendChild(mo);
+
+    // Load lead count on campaign select
+    document.getElementById('tpl-bulk-camp')?.addEventListener('change',async function(){
+      const cid=this.value;
+      if(!cid){document.getElementById('tpl-bulk-preview').textContent='';return;}
+      const campLeads=await fetch('/leads?campaign_id='+cid).then(r=>r.json());
+      const eligible=campLeads.filter(l=>l.status==='new'&&l.email);
+      document.getElementById('tpl-bulk-preview').innerHTML=
+        `<span style="color:var(--accent);font-weight:600">${eligible.length} leads</span> eligible (status: New, has email)`;
+    });
+
+    document.getElementById('tpl-lead-search')?.focus();
   }catch(e){ntf('Error loading template','error');}
+}
+
+function switchTplTab(tab){
+  document.getElementById('tpl-tab-single').classList.toggle('on',tab==='single');
+  document.getElementById('tpl-tab-bulk').classList.toggle('on',tab==='bulk');
+  document.getElementById('tpl-panel-single').style.display=tab==='single'?'block':'none';
+  document.getElementById('tpl-panel-bulk').style.display=tab==='bulk'?'block':'none';
+}
+
+function filterTplLeads(){
+  const q=(document.getElementById('tpl-lead-search')?.value||'').toLowerCase();
+  document.querySelectorAll('.tpl-lead-row').forEach(row=>{
+    const match=row.dataset.name.includes(q)||row.dataset.company.includes(q)||row.dataset.email.includes(q);
+    row.style.display=match?'flex':'none';
+  });
+}
+
+async function applyTemplateToLead(templateId,subject,body,leadId,leadName){
+  document.getElementById('mo-tpl-pick')?.remove();
+  await openEmail(leadId);
+  setTimeout(()=>{
+    const subEl=document.getElementById('em-subject');
+    const bodyEl=document.getElementById('em-body');
+    if(subEl)subEl.value=subject;
+    if(bodyEl)bodyEl.value=body;
+    fetch('/email-templates/'+templateId+'/use',{method:'PUT'});
+    ntf('✓ Template loaded for '+leadName);
+  },600);
+}
+
+async function bulkSendTemplate(templateId,subject,body){
+  const campId=document.getElementById('tpl-bulk-camp')?.value;
+  const context=document.getElementById('tpl-bulk-context')?.value||'';
+  if(!campId){ntf('Select a campaign first','error');return;}
+  const btn=document.querySelector('#tpl-panel-bulk .btn.bp');
+  if(btn){btn.textContent='Sending...';btn.disabled=true;}
+  try{
+    const campLeads=await fetch('/leads?campaign_id='+campId).then(r=>r.json());
+    const eligible=campLeads.filter(l=>l.status==='new'&&l.email);
+    if(!eligible.length){ntf('No eligible leads in this campaign','error');if(btn){btn.textContent='⚡ Send to All Eligible Leads →';btn.disabled=false;}return;}
+    let sent=0,failed=0;
+    for(const lead of eligible){
+      try{
+        // Generate personalized email using template as base
+        const genRes=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({lead_id:lead.id,email_type:'cold',context:context||subject})}).then(r=>r.json());
+        const emailSubject=genRes.subject||subject;
+        const emailBody=genRes.body||body;
+        // Send
+        const sendRes=await fetch('/leads/'+lead.id+'/send-email',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({subject:emailSubject,body:emailBody})}).then(r=>r.json());
+        if(sendRes.success)sent++;else failed++;
+      }catch(e){failed++;}
+      // Small delay to avoid Gmail rate limits
+      await new Promise(res=>setTimeout(res,1500));
+    }
+    document.getElementById('mo-tpl-pick')?.remove();
+    ntf(`✓ Sent ${sent} emails${failed?', '+failed+' failed':''}`,sent>0?'success':'error');
+    fetch('/email-templates/'+templateId+'/use',{method:'PUT'});
+  }catch(e){ntf('Bulk send error','error');}
+  if(btn){btn.textContent='⚡ Send to All Eligible Leads →';btn.disabled=false;}
 }
 
 async function deleteTemplate(id){
@@ -2284,7 +2494,7 @@ async function loadEmailLog(){
     }
     if(!emails.length){tb.innerHTML='<tr><td colspan="8"><div class="empty"><div class="em">&#128196;</div><p>No emails sent in this period.</p></div></td></tr>';return;}
     tb.innerHTML=emails.map(e=>`<tr>
-      <td><b>${e.full_name||'—'}</b></td>
+      <td><b style="cursor:pointer;color:var(--accent)" onclick="openEmail(${e.lead_id})">${e.full_name||'—'}</b></td>
       <td style="font-size:11px;color:var(--t3)">${e.title||'—'}</td>
       <td>${e.company||'—'}</td>
       <td>${e.campaign_name?`<span class="cp">${e.campaign_name}</span>`:'—'}</td>
@@ -2341,9 +2551,22 @@ async function bulkUpdateStatus(){
   if(!status){ntf('Select a status','error');return;}
   if(!confirm(`Update ${selectedLeads.size} leads to "${status}"?`))return;
   try{
+    const leadIds=Array.from(selectedLeads);
+    const leadCount=leadIds.length;
     const r=await fetch('/leads/bulk-status-update',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lead_ids:Array.from(selectedLeads),status})}).then(r=>r.json());
-    ntf('✓ '+r.message);selectedLeads=new Set();updateBulkUI();loadAllLeads();loadDash();
+      body:JSON.stringify({lead_ids:leadIds,status})}).then(r=>r.json());
+    ntf('✓ '+r.message);
+    if(status==='responded'){
+      let popName=`${leadCount} lead${leadCount>1?'s':''} responded!`;
+      if(leadCount===1){
+        try{
+          const lead=await fetch('/leads/'+leadIds[0]).then(r=>r.json());
+          popName=lead.full_name||popName;
+        }catch(e){}
+      }
+      setTimeout(()=>launchFoxHunt(popName),300);
+    }
+    selectedLeads=new Set();updateBulkUI();loadAllLeads();loadDash();
   }catch(e){ntf('Update failed','error');}
 }
 
