@@ -845,6 +845,15 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <tbody id="log-tb"></tbody>
     </table></div>
   </div>
+
+  <!-- SCHEDULED EMAILS CARD -->
+  <div class="card" style="margin-top:20px">
+    <div class="ch" style="margin-bottom:14px">
+      <div class="ct">🕐 Scheduled Emails</div>
+      <button class="btn bw xs" onclick="loadScheduledEmails()">↺ Refresh</button>
+    </div>
+    <div id="scheduled-list"><div class="ld">Loading...</div></div>
+  </div>
 </div>
 
 </div><!-- end .main -->
@@ -895,6 +904,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <button class="btn bo sm" onclick="checkSpamScore()" title="Check spam score before sending">&#9889; Spam Check</button>
       <div id="spam-score-display" style="font-size:11px;display:none;padding:3px 8px;border-radius:5px"></div>
       <button class="btn bp sm" id="send-email-btn" onclick="sendEmailNow()" style="background:#2E8B57;box-shadow:0 2px 12px rgba(46,139,87,0.3)">&#9889; Send Email</button>
+      <button class="btn bo sm" onclick="openScheduleEmail()" title="Schedule email for later">🕐 Schedule</button>
       <label class="btn bo sm" style="cursor:pointer;gap:4px" title="Attach file">&#128206;
         <input type="file" id="email-attachment" style="display:none" accept=".pdf,.doc,.docx,.txt,.png,.jpg" onchange="showAttachment(this)">
       </label>
@@ -1003,7 +1013,7 @@ function sp(p,el){
   if(p==='followup'){loadFollowupQueue();popCampFq();}
   if(p==='settings'){loadEmailSettings();loadDeliverabilitySettings();loadEmailSettingsExtended();loadTeam();}
   if(p==='templates'){loadTemplates();}
-  if(p==='email-log'){popLogCamps();loadEmailLog();}
+  if(p==='email-log'){popLogCamps();loadEmailLog();loadScheduledEmails();}
   if(p==='inbox'){popInboxCamps();loadInbox();}
   if(p==='import'){popImportCamps();}
 }
@@ -2131,6 +2141,63 @@ async function loadDashCharts(){
 // ═══════════════════════════════════════════════════════════
 // FEATURE 18 — MULTI-USER / INVITE TEAM MEMBER
 // ═══════════════════════════════════════════════════════════
+function openScheduleEmail(){
+  if(!curLead){ntf('No lead selected','error');return;}
+  const subEl=document.getElementById('em-subject');
+  const bodyEl=document.getElementById('em-body');
+  if(!subEl?.value||!bodyEl?.value){ntf('Generate an email first','error');return;}
+  const existing=document.getElementById('mo-schedule');if(existing)existing.remove();
+  const now=new Date();now.setHours(now.getHours()+1);now.setMinutes(0);
+  const pad=n=>String(n).padStart(2,'0');
+  const defaultDt=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:00`;
+  const mo=document.createElement('div');mo.id='mo-schedule';mo.className='mo show';
+  mo.innerHTML=`<div class="modal" style="width:420px;max-width:95vw">
+    <div class="mh"><div class="mt">🕐 Schedule Email</div><button class="mcl" onclick="document.getElementById('mo-schedule').remove()">&#215;</button></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:16px;padding:10px;background:var(--ib);border-radius:8px">
+      Email will be sent at your chosen time. Make sure your server is running.
+    </div>
+    <div class="fm" style="margin-bottom:14px">
+      <label>Send Date & Time</label>
+      <input type="datetime-local" id="sch-datetime" value="${defaultDt}" style="width:100%">
+    </div>
+    <div class="fm" style="margin-bottom:16px">
+      <label>Timezone</label>
+      <select id="sch-tz" style="width:100%">
+        <option value="America/New_York">Eastern Time (ET)</option>
+        <option value="America/Chicago">Central Time (CT)</option>
+        <option value="America/Denver">Mountain Time (MT)</option>
+        <option value="America/Los_Angeles">Pacific Time (PT)</option>
+        <option value="UTC">UTC</option>
+        <option value="Asia/Kolkata">India (IST)</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bp" style="flex:1" onclick="confirmScheduleEmail()">🕐 Schedule Send →</button>
+      <button class="btn bo" onclick="document.getElementById('mo-schedule').remove()">Cancel</button>
+    </div>
+  </div>`;
+  mo.onclick=e=>{if(e.target===mo)mo.remove();};
+  document.body.appendChild(mo);
+}
+
+async function confirmScheduleEmail(){
+  const dt=document.getElementById('sch-datetime')?.value;
+  const tz=document.getElementById('sch-tz')?.value||'America/New_York';
+  const subEl=document.getElementById('em-subject');
+  const bodyEl=document.getElementById('em-body');
+  if(!dt){ntf('Pick a date and time','error');return;}
+  try{
+    const r=await fetch('/schedule-email',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lead_id:curLead,subject:subEl.value,body:bodyEl.value,
+        send_at:dt,timezone:tz})}).then(r=>r.json());
+    if(r.success||r.message){
+      document.getElementById('mo-schedule')?.remove();
+      ntf('✓ Email scheduled for '+new Date(dt).toLocaleString());
+      cmo('mo-email');
+    }else ntf(r.detail||'Schedule failed','error');
+  }catch(e){ntf('Schedule failed','error');}
+}
+
 function openInviteUser(){
   const ex=document.getElementById('mo-invite');if(ex)ex.remove();
   const mo=document.createElement('div');mo.id='mo-invite';mo.className='mo show';
@@ -2470,6 +2537,76 @@ function saveCurrentAsTemplate(){
     body:JSON.stringify({name,subject,body,email_type:'cold'})}).then(r=>r.json()).then(r=>{
     if(r.success)ntf('✓ Saved as template: '+name);
   });
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCHEDULED EMAILS
+// ═══════════════════════════════════════════════════════════
+async function loadScheduledEmails(){
+  const el=document.getElementById('scheduled-list');
+  if(!el)return;
+  el.innerHTML='<div class="ld">Loading...</div>';
+  try{
+    const r=await fetch('/scheduled-emails').then(r=>r.json());
+    const emails=r.scheduled||[];
+    if(!emails.length){
+      el.innerHTML='<div class="empty"><div class="em">🕐</div><p>No scheduled emails.<br>Use the Schedule button in the email modal to queue emails.</p></div>';
+      return;
+    }
+    el.innerHTML=`<div class="tw"><table>
+      <thead><tr><th>Lead</th><th>Company</th><th>Subject</th><th>Scheduled For</th><th>Timezone</th><th></th></tr></thead>
+      <tbody>${emails.map(e=>`<tr>
+        <td><b>${e.full_name||'—'}</b><div style="font-size:11px;color:var(--t3)">${e.email||''}</div></td>
+        <td style="font-size:12px">${e.company||'—'}</td>
+        <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.subject||'—'}</td>
+        <td style="font-size:12px;color:var(--accent)">${e.send_at?new Date(e.send_at).toLocaleString('en',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}</td>
+        <td style="font-size:11px;color:var(--t3)">${e.timezone||'—'}</td>
+        <td style="display:flex;gap:5px">
+          <button class="btn bw xs" onclick="rescheduleEmail(${e.id},'${e.send_at?.slice(0,16)||''}')">✏ Edit</button>
+          <button class="btn bd xs" onclick="cancelScheduled(${e.id},'${(e.full_name||'').replace(/'/g,"\\'")}')">✕ Cancel</button>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div style="margin-top:8px;font-size:11px;color:var(--t3)">${emails.length} email${emails.length!==1?'s':''} scheduled · Sends automatically when due</div>`;
+  }catch(e){el.innerHTML='<div style="color:#F87171;font-size:12px;padding:10px">Could not load scheduled emails.</div>';}
+}
+
+async function cancelScheduled(id,name){
+  if(!confirm(`Cancel scheduled email to ${name}?`))return;
+  try{
+    const r=await fetch('/scheduled-emails/'+id,{method:'DELETE'}).then(r=>r.json());
+    if(r.success){ntf('✓ Cancelled');loadScheduledEmails();}
+    else ntf('Could not cancel','error');
+  }catch(e){ntf('Error','error');}
+}
+
+function rescheduleEmail(id,currentDt){
+  const existing=document.getElementById('mo-reschedule');if(existing)existing.remove();
+  const mo=document.createElement('div');mo.id='mo-reschedule';mo.className='mo show';
+  mo.innerHTML=`<div class="modal" style="width:380px;max-width:95vw">
+    <div class="mh"><div class="mt">✏ Reschedule Email</div><button class="mcl" onclick="document.getElementById('mo-reschedule').remove()">&#215;</button></div>
+    <div class="fm" style="margin-bottom:14px">
+      <label>New Date & Time</label>
+      <input type="datetime-local" id="rsch-dt" value="${currentDt}" style="width:100%">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bp" style="flex:1" onclick="confirmReschedule(${id})">Save →</button>
+      <button class="btn bo" onclick="document.getElementById('mo-reschedule').remove()">Cancel</button>
+    </div>
+  </div>`;
+  mo.onclick=e=>{if(e.target===mo)mo.remove();};
+  document.body.appendChild(mo);
+}
+
+async function confirmReschedule(id){
+  const dt=document.getElementById('rsch-dt')?.value;
+  if(!dt){ntf('Pick a date','error');return;}
+  try{
+    const r=await fetch('/scheduled-emails/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({send_at:dt})}).then(r=>r.json());
+    if(r.success){document.getElementById('mo-reschedule')?.remove();ntf('✓ Rescheduled');loadScheduledEmails();}
+    else ntf('Could not reschedule','error');
+  }catch(e){ntf('Error','error');}
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -11,12 +11,13 @@ import secrets
 import imaplib
 import email as email_lib
 import time
+import threading
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 import mysql.connector
-from fastapi import FastAPI, HTTPException, Cookie, Response, File, UploadFile, Form, BackgroundTasks, Body
+from fastapi import FastAPI, HTTPException, Cookie, Response, File, UploadFile, Form, BackgroundTasks, Body, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -137,6 +138,18 @@ def init_db():
         reason VARCHAR(100) DEFAULT 'unsubscribed',
         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS scheduled_emails (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        lead_id INT NOT NULL,
+        user_id INT,
+        subject VARCHAR(500),
+        body TEXT,
+        send_at DATETIME NOT NULL,
+        timezone VARCHAR(100) DEFAULT 'America/New_York',
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        sent_at TIMESTAMP NULL
+    )""")
     cursor.execute("""CREATE TABLE IF NOT EXISTS email_daily_log (
         id INT AUTO_INCREMENT PRIMARY KEY,
         campaign_id INT,
@@ -180,6 +193,7 @@ def init_db():
         "ALTER TABLE leads ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
         "ALTER TABLE campaigns ADD COLUMN industry_focus VARCHAR(255) DEFAULT ''",
         "ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'member'",
+        "CREATE TABLE IF NOT EXISTS scheduled_emails (id INT AUTO_INCREMENT PRIMARY KEY, lead_id INT NOT NULL, user_id INT, subject VARCHAR(500), body TEXT, send_at DATETIME NOT NULL, timezone VARCHAR(100) DEFAULT 'America/New_York', status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, sent_at TIMESTAMP NULL)",
     ]
     for sql in migrations:
         try:
@@ -190,9 +204,57 @@ def init_db():
     cursor.close()
     db.close()
 
+def send_scheduled_emails():
+    """Background thread — checks every 60s for due scheduled emails and sends them"""
+    while True:
+        try:
+            db=get_db(); c=db.cursor(dictionary=True)
+            now=datetime.now()
+            c.execute("""SELECT se.*,l.full_name,l.email as lead_email,l.company,
+                            ues.gmail_user,ues.gmail_app_password,ues.base_url
+                         FROM scheduled_emails se
+                         LEFT JOIN leads l ON l.id=se.lead_id
+                         LEFT JOIN user_email_settings ues ON ues.user_id=se.user_id
+                         WHERE se.status='pending' AND se.send_at <= %s""",(now,))
+            due=c.fetchall(); c.close(); db.close()
+            for email in due:
+                try:
+                    gmail_user=email.get("gmail_user","")
+                    gmail_pass=email.get("gmail_app_password","")
+                    to_email=email.get("lead_email","")
+                    if not gmail_user or not gmail_pass or not to_email:
+                        continue
+                    msg=MIMEMultipart("alternative")
+                    msg["Subject"]=email.get("subject","")
+                    msg["From"]=gmail_user
+                    msg["To"]=to_email
+                    body_text=email.get("body","")
+                    msg.attach(MIMEText(body_text,"plain"))
+                    msg.attach(MIMEText(body_text.replace("\n","<br>"),"html"))
+                    with smtplib.SMTP_SSL("smtp.gmail.com",465) as smtp:
+                        smtp.login(gmail_user,gmail_pass)
+                        smtp.sendmail(gmail_user,to_email,msg.as_string())
+                    db2=get_db(); c2=db2.cursor()
+                    c2.execute("UPDATE scheduled_emails SET status='sent',sent_at=NOW() WHERE id=%s",(email["id"],))
+                    c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(email["lead_id"],))
+                    db2.commit(); c2.close(); db2.close()
+                    print(f"[Scheduler] Sent scheduled email to {to_email}")
+                except Exception as e:
+                    print(f"[Scheduler] Failed to send {email.get('id')}: {e}")
+                    db3=get_db(); c3=db3.cursor()
+                    c3.execute("UPDATE scheduled_emails SET status='failed' WHERE id=%s",(email["id"],))
+                    db3.commit(); c3.close(); db3.close()
+        except Exception as e:
+            print(f"[Scheduler] Error: {e}")
+        time.sleep(60)
+
 @asynccontextmanager
 async def lifespan(app):
     init_db()
+    # Start scheduled email sender in background thread
+    t=threading.Thread(target=send_scheduled_emails,daemon=True)
+    t.start()
+    print("[Scheduler] Background email sender started")
     yield
 
 app = FastAPI(title="LeadFlow AI", lifespan=lifespan)
@@ -2464,22 +2526,80 @@ def get_tz_for_location(location: str) -> str:
     return "America/New_York"
 
 @app.post("/schedule-email")
-async def schedule_email_tz(request: dict):
-    lead_id=request.get("lead_id"); target_hour=request.get("target_hour",9)
-    db=get_db(); c=db.cursor(dictionary=True)
-    c.execute("SELECT location FROM leads WHERE id=%s",(lead_id,))
-    lead=c.fetchone(); c.close(); db.close()
-    if not lead: return {"success":False,"message":"Lead not found"}
-    tz_name=get_tz_for_location(lead.get("location",""))
-    from datetime import datetime,timedelta
+async def schedule_email_tz(request: Request):
+    body=await request.json()
+    lead_id=body.get("lead_id")
+    subject=body.get("subject","")
+    email_body=body.get("body","")
+    send_at_str=body.get("send_at","")
+    timezone=body.get("timezone","America/New_York")
+    if not lead_id or not send_at_str:
+        raise HTTPException(400,"lead_id and send_at required")
+    # Parse datetime
+    from datetime import datetime
     try:
-        import pytz
-        tz=pytz.timezone(tz_name); now=datetime.now(pytz.utc); pnow=now.astimezone(tz)
-        target=pnow.replace(hour=target_hour,minute=0,second=0,microsecond=0)
-        if pnow.hour>=target_hour: target+=timedelta(days=1)
-        delay=int((target.astimezone(pytz.utc)-now).total_seconds())
-    except: delay=0
-    return {"success":True,"timezone":tz_name,"send_in_seconds":delay,"delay_hours":round(delay/3600,1)}
+        send_at=datetime.strptime(send_at_str[:16],"%Y-%m-%dT%H:%M")
+    except:
+        return {"success":False,"message":"Invalid date format"}
+    token=request.cookies.get("session_token","")
+    db=get_db(); c=db.cursor(dictionary=True)
+    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
+    user=c.fetchone()
+    user_id=user["id"] if user else None
+    c2=db.cursor()
+    c2.execute("INSERT INTO scheduled_emails (lead_id,user_id,subject,body,send_at,timezone,status) VALUES (%s,%s,%s,%s,%s,%s,'pending')",
+        (lead_id,user_id,subject,email_body,send_at,timezone))
+    db.commit(); scheduled_id=c2.lastrowid
+    c2.close(); c.close(); db.close()
+    return {"success":True,"message":f"Email scheduled for {send_at_str}","id":scheduled_id}
+
+@app.get("/scheduled-emails")
+async def get_scheduled_emails(request: Request):
+    token=request.cookies.get("session_token","")
+    db=get_db(); c=db.cursor(dictionary=True)
+    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
+    user=c.fetchone()
+    if not user: c.close(); db.close(); raise HTTPException(401,"Not authenticated")
+    c.execute("""SELECT se.*,l.full_name,l.email,l.company,l.title
+        FROM scheduled_emails se
+        LEFT JOIN leads l ON l.id=se.lead_id
+        WHERE se.user_id=%s AND se.status='pending'
+        ORDER BY se.send_at ASC""",(user["id"],))
+    emails=c.fetchall(); c.close(); db.close()
+    for e in emails:
+        if e.get("send_at"): e["send_at"]=str(e["send_at"])
+        if e.get("created_at"): e["created_at"]=str(e["created_at"])
+    return {"scheduled":emails,"total":len(emails)}
+
+@app.delete("/scheduled-emails/{schedule_id}")
+async def cancel_scheduled_email(schedule_id: int, request: Request):
+    token=request.cookies.get("session_token","")
+    db=get_db(); c=db.cursor(dictionary=True)
+    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
+    user=c.fetchone()
+    if not user: c.close(); db.close(); raise HTTPException(401,"Not authenticated")
+    c2=db.cursor()
+    c2.execute("UPDATE scheduled_emails SET status='cancelled' WHERE id=%s AND user_id=%s",(schedule_id,user["id"]))
+    db.commit(); c2.close(); c.close(); db.close()
+    return {"success":True,"message":"Scheduled email cancelled"}
+
+@app.patch("/scheduled-emails/{schedule_id}")
+async def reschedule_email(schedule_id: int, request: Request):
+    body=await request.json()
+    new_send_at=body.get("send_at","")
+    token=request.cookies.get("session_token","")
+    from datetime import datetime
+    try: send_at=datetime.strptime(new_send_at[:16],"%Y-%m-%dT%H:%M")
+    except: return {"success":False,"message":"Invalid date format"}
+    db=get_db(); c=db.cursor(dictionary=True)
+    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
+    user=c.fetchone()
+    if not user: c.close(); db.close(); raise HTTPException(401,"Not authenticated")
+    c2=db.cursor()
+    c2.execute("UPDATE scheduled_emails SET send_at=%s WHERE id=%s AND user_id=%s AND status='pending'",
+        (send_at,schedule_id,user["id"]))
+    db.commit(); c2.close(); c.close(); db.close()
+    return {"success":True,"message":f"Rescheduled to {new_send_at}"}
 
 # ── CSV IMPORT ────────────────────────────────────────────────
 @app.post("/campaigns/{campaign_id}/import-csv")
