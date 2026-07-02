@@ -691,7 +691,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       </div>
       <div class="fm">
         <label>Calendly / Meeting Link</label>
-        <input type="text" id="set-calendly" placeholder="https://calendly.com/yourname/15min">
+        <input type="text" id="set-calendly2" placeholder="https://calendly.com/yourname/15min" oninput="const m=document.getElementById('set-calendly');if(m)m.value=this.value;">
         <div style="font-size:11px;color:var(--t3);margin-top:3px">Auto-appended to every email CTA</div>
       </div>
     </div>
@@ -905,6 +905,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <div id="spam-score-display" style="font-size:11px;display:none;padding:3px 8px;border-radius:5px"></div>
       <button class="btn bp sm" id="send-email-btn" onclick="sendEmailNow()" style="background:#2E8B57;box-shadow:0 2px 12px rgba(46,139,87,0.3)">&#9889; Send Email</button>
       <button class="btn bo sm" onclick="openScheduleEmail()" title="Schedule email for later">🕐 Schedule</button>
+      <button class="btn bo sm" onclick="openVideoEmbed()" title="Embed Loom or video link">🎥 Video</button>
       <label class="btn bo sm" style="cursor:pointer;gap:4px" title="Attach file">&#128206;
         <input type="file" id="email-attachment" style="display:none" accept=".pdf,.doc,.docx,.txt,.png,.jpg" onchange="showAttachment(this)">
       </label>
@@ -1323,6 +1324,13 @@ async function openEmail(id){
   const att=document.getElementById('email-attachment');if(att)att.value='';
   const attName=document.getElementById('attachment-name');if(attName)attName.textContent='';
   const attDel=document.getElementById('attachment-del');if(attDel)attDel.style.display='none';
+  // Restore saved context
+  const ctxEl=document.getElementById('email-scenario');
+  if(ctxEl){
+    const saved=localStorage.getItem('lf-email-ctx')||'';
+    ctxEl.value=saved;
+    ctxEl.oninput=function(){localStorage.setItem('lf-email-ctx',this.value);this.style.height='auto';this.style.height=this.scrollHeight+'px';};
+  }
   document.getElementById('mo-email').classList.add('show');
   document.getElementById('em-content').innerHTML='<div class="ld">Generating...</div>';
   document.querySelectorAll('.etab').forEach(t=>t.classList.remove('on'));document.querySelectorAll('.etab')[0].classList.add('on');
@@ -2024,6 +2032,7 @@ async function loadDeliverabilitySettings(){
     const wl=document.getElementById('warmup-limit');if(wl)wl.value=w.daily_limit||50;
     const we=document.getElementById('warmup-enabled');if(we)we.checked=!!w.warmup_enabled;
     const sc=document.getElementById('set-calendly');if(sc)sc.value=c.calendly_url||'';
+    const sc2=document.getElementById('set-calendly2');if(sc2)sc2.value=c.calendly_url||'';
     const sw=document.getElementById('set-webhook');if(sw)sw.value=wh.webhook_url||'';
   }catch(e){}
 }
@@ -2196,6 +2205,46 @@ async function confirmScheduleEmail(){
       cmo('mo-email');
     }else ntf(r.detail||'Schedule failed','error');
   }catch(e){ntf('Schedule failed','error');}
+}
+
+function openVideoEmbed(){
+  if(!curLead){ntf('Open a lead email first','error');return;}
+  const existing=document.getElementById('mo-video');if(existing)existing.remove();
+  const mo=document.createElement('div');mo.id='mo-video';mo.className='mo show';
+  mo.innerHTML=`<div class="modal" style="width:460px;max-width:95vw">
+    <div class="mh"><div class="mt">🎥 Embed Video / Loom</div><button class="mcl" onclick="document.getElementById('mo-video').remove()">&#215;</button></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px;background:var(--ib);border-radius:8px">
+      Paste a Loom, YouTube, or any video URL. A clickable thumbnail link will be added to the email body.
+    </div>
+    <div class="fm" style="margin-bottom:12px">
+      <label>Video URL</label>
+      <input type="url" id="vid-url" placeholder="https://www.loom.com/share/... or https://youtu.be/..." style="width:100%">
+    </div>
+    <div class="fm" style="margin-bottom:14px">
+      <label>Caption (optional)</label>
+      <input type="text" id="vid-caption" placeholder="Watch our 2-min product demo →" style="width:100%" value="Watch our 2-min product demo →">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bp" style="flex:1" onclick="insertVideoEmbed()">Insert into Email →</button>
+      <button class="btn bo" onclick="document.getElementById('mo-video').remove()">Cancel</button>
+    </div>
+  </div>`;
+  mo.onclick=e=>{if(e.target===mo)mo.remove();};
+  document.body.appendChild(mo);
+  setTimeout(()=>document.getElementById('vid-url')?.focus(),100);
+}
+
+function insertVideoEmbed(){
+  const url=document.getElementById('vid-url')?.value?.trim();
+  const caption=document.getElementById('vid-caption')?.value?.trim()||'Watch video →';
+  if(!url){ntf('Enter a video URL','error');return;}
+  const bodyEl=document.getElementById('em-body');
+  if(!bodyEl){ntf('Generate an email first','error');return;}
+  // Build video embed text
+  const embedText=`\n\n🎥 ${caption}\n${url}\n`;
+  bodyEl.value=bodyEl.value+embedText;
+  document.getElementById('mo-video')?.remove();
+  ntf('✓ Video link added to email');
 }
 
 function openInviteUser(){

@@ -1836,7 +1836,7 @@ async def can_send_check(lead_id: int):
 async def get_rate_limit(campaign_id: int): return check_rate_limit(campaign_id)
 
 @app.post("/generate-email")
-async def generate_email(request: EmailRequest):
+async def generate_email(request: EmailRequest, request_obj: Request):
     db=get_db(); cursor=db.cursor(dictionary=True)
     cursor.execute("SELECT * FROM leads WHERE id=%s",(request.lead_id,))
     lead=cursor.fetchone(); cursor.close(); db.close()
@@ -1952,13 +1952,19 @@ async def generate_email(request: EmailRequest):
     if not body: body=raw
     # Clean markdown formatting Groq sometimes adds
     body=body.replace("**","").replace("##","").strip()
-    # Append CAN-SPAM unsubscribe footer + Calendly link
+    # Append Calendly link + CAN-SPAM footer
     try:
         db_s=get_db(); c_s=db_s.cursor(dictionary=True)
-        c_s.execute("SELECT calendly_url FROM user_email_settings LIMIT 1")
+        c_s.execute("SELECT calendly_url FROM user_email_settings WHERE calendly_url IS NOT NULL AND calendly_url!='' LIMIT 1")
         es=c_s.fetchone(); c_s.close(); db_s.close()
-        cal_url = es.get("calendly_url") if es else None
-    except: cal_url = None
+        cal_url = es.get("calendly_url","") if es else ""
+        print(f"[Calendly] URL from DB: {repr(cal_url)}")
+    except Exception as e:
+        cal_url = ""
+        print(f"[Calendly] Error: {e}")
+    if cal_url and cal_url.strip():
+        body = body + f"\n\nBook a 15-min call here: {cal_url.strip()}"
+        print(f"[Calendly] Appended to email body")
     body = body + get_email_footer(request.lead_id)
     db=get_db(); cursor=db.cursor()
     cursor.execute("INSERT INTO emails (lead_id,subject,body,email_type) VALUES (%s,%s,%s,%s)",(request.lead_id,subject,body,request.email_type))
@@ -2502,14 +2508,18 @@ async def get_meeting_link():
     except: c.close(); db.close(); return {"calendly_url":""}
 
 @app.post("/meeting-link-settings")
-async def save_meeting_link(request: dict):
-    url=request.get("calendly_url","").strip()
+async def save_meeting_link(request: Request):
+    body=await request.json()
+    url=body.get("calendly_url","").strip()
+    print(f"[Calendly] Saving URL: {repr(url)}")
     db=get_db(); c=db.cursor()
     try:
         c.execute("UPDATE user_email_settings SET calendly_url=%s",(url,))
         if c.rowcount==0: c.execute("INSERT INTO user_email_settings (calendly_url) VALUES (%s)",(url,))
         db.commit()
-    except:
+        print(f"[Calendly] Saved successfully, rows affected: {c.rowcount}")
+    except Exception as e:
+        print(f"[Calendly] Save error: {e}")
         try: c.execute("ALTER TABLE user_email_settings ADD COLUMN calendly_url VARCHAR(500)"); c.execute("UPDATE user_email_settings SET calendly_url=%s",(url,)); db.commit()
         except: pass
     c.close(); db.close()
