@@ -11,7 +11,6 @@ import secrets
 import imaplib
 import email as email_lib
 import time
-import threading
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -28,6 +27,35 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 
 load_dotenv()
+
+# ── RESEND EMAIL SENDER ───────────────────────────────────────
+def send_via_resend(to_email: str, subject: str, body: str, from_name: str = "LeadFlow AI") -> dict:
+    """Send email via Resend API — works on Railway (no SMTP port blocking)"""
+    api_key = os.getenv("RESEND_API_KEY", "")
+    if not api_key:
+        return {"success": False, "error": "RESEND_API_KEY not configured"}
+    try:
+        r = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "from": f"{from_name} <onboarding@resend.dev>",
+                "to": [to_email],
+                "subject": subject,
+                "text": body,
+            },
+            timeout=15
+        )
+        data = r.json()
+        if r.status_code in (200, 201) and data.get("id"):
+            print(f"[Resend] ✓ Sent to {to_email} — ID: {data['id']}")
+            return {"success": True, "message_id": data["id"]}
+        else:
+            print(f"[Resend] Error: {data}")
+            return {"success": False, "error": str(data)}
+    except Exception as e:
+        print(f"[Resend] Exception: {e}")
+        return {"success": False, "error": str(e)}
 
 def get_db():
     return mysql.connector.connect(
@@ -83,7 +111,6 @@ def init_db():
         exclude_apprentice TINYINT(1) DEFAULT 1,
         job_date_filter VARCHAR(20) DEFAULT '24h',
         notes TEXT,
-        industry_focus VARCHAR(255) DEFAULT '',
         status VARCHAR(50) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
@@ -138,18 +165,6 @@ def init_db():
         reason VARCHAR(100) DEFAULT 'unsubscribed',
         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
-    cursor.execute("""CREATE TABLE IF NOT EXISTS scheduled_emails (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        lead_id INT NOT NULL,
-        user_id INT,
-        subject VARCHAR(500),
-        body TEXT,
-        send_at DATETIME NOT NULL,
-        timezone VARCHAR(100) DEFAULT 'America/New_York',
-        status VARCHAR(20) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        sent_at TIMESTAMP NULL
-    )""")
     cursor.execute("""CREATE TABLE IF NOT EXISTS email_daily_log (
         id INT AUTO_INCREMENT PRIMARY KEY,
         campaign_id INT,
@@ -191,9 +206,6 @@ def init_db():
         "ALTER TABLE leads ADD COLUMN cooldown_until DATE DEFAULT NULL",
         "ALTER TABLE leads ADD COLUMN emailed_at TIMESTAMP DEFAULT NULL",
         "ALTER TABLE leads ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-        "ALTER TABLE campaigns ADD COLUMN industry_focus VARCHAR(255) DEFAULT ''",
-        "ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'member'",
-        "CREATE TABLE IF NOT EXISTS scheduled_emails (id INT AUTO_INCREMENT PRIMARY KEY, lead_id INT NOT NULL, user_id INT, subject VARCHAR(500), body TEXT, send_at DATETIME NOT NULL, timezone VARCHAR(100) DEFAULT 'America/New_York', status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, sent_at TIMESTAMP NULL)",
     ]
     for sql in migrations:
         try:
@@ -204,57 +216,9 @@ def init_db():
     cursor.close()
     db.close()
 
-def send_scheduled_emails():
-    """Background thread — checks every 60s for due scheduled emails and sends them"""
-    while True:
-        try:
-            db=get_db(); c=db.cursor(dictionary=True)
-            now=datetime.now()
-            c.execute("""SELECT se.*,l.full_name,l.email as lead_email,l.company,
-                            ues.gmail_user,ues.gmail_app_password,ues.base_url
-                         FROM scheduled_emails se
-                         LEFT JOIN leads l ON l.id=se.lead_id
-                         LEFT JOIN user_email_settings ues ON ues.user_id=se.user_id
-                         WHERE se.status='pending' AND se.send_at <= %s""",(now,))
-            due=c.fetchall(); c.close(); db.close()
-            for email in due:
-                try:
-                    gmail_user=email.get("gmail_user","")
-                    gmail_pass=email.get("gmail_app_password","")
-                    to_email=email.get("lead_email","")
-                    if not gmail_user or not gmail_pass or not to_email:
-                        continue
-                    msg=MIMEMultipart("alternative")
-                    msg["Subject"]=email.get("subject","")
-                    msg["From"]=gmail_user
-                    msg["To"]=to_email
-                    body_text=email.get("body","")
-                    msg.attach(MIMEText(body_text,"plain"))
-                    msg.attach(MIMEText(body_text.replace("\n","<br>"),"html"))
-                    with smtplib.SMTP_SSL("smtp.gmail.com",465) as smtp:
-                        smtp.login(gmail_user,gmail_pass)
-                        smtp.sendmail(gmail_user,to_email,msg.as_string())
-                    db2=get_db(); c2=db2.cursor()
-                    c2.execute("UPDATE scheduled_emails SET status='sent',sent_at=NOW() WHERE id=%s",(email["id"],))
-                    c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(email["lead_id"],))
-                    db2.commit(); c2.close(); db2.close()
-                    print(f"[Scheduler] Sent scheduled email to {to_email}")
-                except Exception as e:
-                    print(f"[Scheduler] Failed to send {email.get('id')}: {e}")
-                    db3=get_db(); c3=db3.cursor()
-                    c3.execute("UPDATE scheduled_emails SET status='failed' WHERE id=%s",(email["id"],))
-                    db3.commit(); c3.close(); db3.close()
-        except Exception as e:
-            print(f"[Scheduler] Error: {e}")
-        time.sleep(60)
-
 @asynccontextmanager
 async def lifespan(app):
     init_db()
-    # Start scheduled email sender in background thread
-    t=threading.Thread(target=send_scheduled_emails,daemon=True)
-    t.start()
-    print("[Scheduler] Background email sender started")
     yield
 
 app = FastAPI(title="LeadFlow AI", lifespan=lifespan)
@@ -330,7 +294,6 @@ class CampaignCreate(BaseModel):
     excluded_industries: Optional[str] = "Staffing,Recruiting,Talent,Consultancy,IT Consultancy,Human Resources Services,Technology Information and Media,University,Non-profit,NGO"
     exclude_intern: bool = True; exclude_remote: bool = True; exclude_apprentice: bool = True
     job_date_filter: str = "3days"; notes: Optional[str] = None
-    industry_focus: Optional[str] = ""
 
 class CompanyCreate(BaseModel):
     campaign_id: int; name: str; industry: str = ""; location: str = ""; size_range: str = ""
@@ -423,40 +386,31 @@ def get_user_gmail(session_token: str):
     return os.getenv("GMAIL_USER",""), os.getenv("GMAIL_APP_PASSWORD","")
 
 
-# ── In-memory cache for contact titles per role (prevents duplicate AI calls)
-_contact_title_cache: dict = {}
-
 def get_contact_titles(target_role: str):
-    # Cache per role to ensure consistency across autofind + FindDM + search
-    role_key = target_role.strip().lower()
-    if role_key in _contact_title_cache:
-        return _contact_title_cache[role_key]
-    prompt = f"""You are a B2B Lead Generation Strategist.
-A company wants to reach decision makers who would HIRE or APPROVE HIRING for the role: "{target_role}"
-Return the EXACT job titles of people who would approve this hire.
+    prompt = f"""You are a Senior B2B Lead Generation Strategist specializing in US recruitment outreach.
+A US recruitment firm wants to place candidates for the role: "{target_role}"
+Return the EXACT job titles of people who would APPROVE HIRING for this role.
 RULES:
-1. NEVER include the target role itself.
-2. Include 3-4 titles ABOVE the target role in the org chart.
-3. Include 2-3 HR/People titles at appropriate seniority level.
-4. Return EXACTLY 6-7 titles total as a JSON array.
-5. Be specific to the industry/context of the role.
+1. NEVER include the target role itself or same-level peers.
+2. Include 3-4 titles ABOVE the target role in the reporting chain.
+3. Include 3 HR titles at appropriate seniority:
+   VP/Director level → "CHRO","VP of Human Resources","VP of Talent Acquisition"
+   Manager/Senior → "Director of HR","Director of Talent Acquisition","Talent Acquisition Manager"
+   Junior → "HR Manager","Talent Acquisition Manager","Recruiter"
+4. Return EXACTLY 6-7 titles total.
 Examples:
 - "VP of Sales" → ["CEO","President","Chief Revenue Officer","Chief Sales Officer","CHRO","Chief People Officer","VP of Talent Acquisition"]
+- "Financial Analyst" → ["CFO","VP of Finance","Director of Finance","Finance Manager","HR Manager","Talent Acquisition Manager","Director of Recruitment"]
 - "Software Engineer" → ["CTO","VP of Engineering","Director of Engineering","Engineering Manager","HR Manager","Technical Recruiting Manager","Director of Recruitment"]
-- "Teacher" → ["Principal","Superintendent","Academic Director","Head of School","HR Director","Director of Talent","Recruiting Coordinator"]
-- "Chef" → ["Executive Chef","Food & Beverage Director","Restaurant General Manager","COO","HR Manager","Talent Acquisition Manager","Operations Director"]
-- "Chauffeur" → ["Fleet Manager","Director of Operations","Transportation Manager","COO","HR Manager","Talent Acquisition Manager","Operations Coordinator"]
 Return ONLY a JSON array. No explanation."""
     try:
-        response = client.chat.completions.create(model="llama-3.3-70b-versatile", max_tokens=200, messages=[{"role":"user","content":prompt}])
+        response = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"user","content":prompt}])
         content = response.choices[0].message.content.strip()
         if "```" in content:
             content = content.split("```")[1]
             if content.startswith("json"): content = content[4:]
         titles = json.loads(content.strip())
-        if isinstance(titles, list) and len(titles) >= 3:
-            _contact_title_cache[role_key] = titles[:8]
-            return titles[:8]
+        if isinstance(titles, list) and len(titles) >= 3: return titles[:8]
         raise ValueError("bad")
     except:
         role_lower = target_role.lower()
@@ -465,65 +419,22 @@ Return ONLY a JSON array. No explanation."""
         hr = ["CHRO","Chief People Officer","VP of Human Resources","VP of Talent Acquisition","Director of Recruitment"] if is_vp else \
              ["Director of HR","Director of Talent Acquisition","Director of Recruitment","Talent Acquisition Manager"] if is_mgr else \
              ["HR Manager","Talent Acquisition Manager","Director of Recruitment","Recruiting Manager"]
-        if any(w in role_lower for w in ["engineer","developer","software","tech","data","ai","ml"]): result = ["CTO","VP of Engineering","Director of Engineering"]+hr
-        elif any(w in role_lower for w in ["finance","financial","analyst","accounting"]): result = ["CFO","VP of Finance","Director of Finance"]+hr
-        elif any(w in role_lower for w in ["vp of sales","chief revenue","cro"]): result = ["CEO","President","Chief Revenue Officer"]+hr
-        elif any(w in role_lower for w in ["sales","revenue","account executive"]): result = ["VP of Sales","Chief Revenue Officer","Director of Sales"]+hr
-        elif any(w in role_lower for w in ["marketing","brand","growth","content"]): result = ["CMO","VP of Marketing","Director of Marketing"]+hr
-        elif any(w in role_lower for w in ["hr","human resources","people operations"]): result = ["CEO","COO","Chief People Officer","VP of People"]+hr[:2]
-        elif any(w in role_lower for w in ["talent","recruiter","recruiting"]): result = ["CHRO","VP of Human Resources","Director of HR","VP of Talent Acquisition","Head of People"]
-        elif any(w in role_lower for w in ["operations","ops","supply chain"]): result = ["COO","VP of Operations","Director of Operations"]+hr
-        elif any(w in role_lower for w in ["product","product manager"]): result = ["CPO","VP of Product","Director of Product","CTO"]+hr
-        elif any(w in role_lower for w in ["teacher","instructor","professor","tutor"]): result = ["Principal","Superintendent","Academic Director","Head of School","HR Director","Director of Talent","Recruiting Coordinator"]
-        elif any(w in role_lower for w in ["driver","chauffeur","transport"]): result = ["Fleet Manager","Director of Operations","Transportation Manager","COO","HR Manager","Talent Acquisition Manager"]
-        elif any(w in role_lower for w in ["chef","cook","kitchen"]): result = ["Executive Chef","F&B Director","Restaurant GM","COO","HR Manager","Talent Acquisition Manager"]
-        else: result = ["CEO","COO","VP of HR","Director of HR","Talent Acquisition Manager","Head of People"]
-        _contact_title_cache[role_key] = result
-        return result
+        if any(w in role_lower for w in ["engineer","developer","software","tech","data","ai","ml"]): return ["CTO","VP of Engineering","Director of Engineering"]+hr
+        if any(w in role_lower for w in ["finance","financial","analyst","accounting"]): return ["CFO","VP of Finance","Director of Finance"]+hr
+        if any(w in role_lower for w in ["vp of sales","chief revenue","cro"]): return ["CEO","President","Chief Revenue Officer"]+hr
+        if any(w in role_lower for w in ["sales","revenue","account executive"]): return ["VP of Sales","Chief Revenue Officer","Director of Sales"]+hr
+        if any(w in role_lower for w in ["marketing","brand","growth","content"]): return ["CMO","VP of Marketing","Director of Marketing"]+hr
+        if any(w in role_lower for w in ["hr","human resources","people operations"]): return ["CEO","COO","Chief People Officer","VP of People"]+hr[:2]
+        if any(w in role_lower for w in ["talent","recruiter","recruiting"]): return ["CHRO","VP of Human Resources","Director of HR","VP of Talent Acquisition","Head of People"]
+        if any(w in role_lower for w in ["operations","ops","supply chain"]): return ["COO","VP of Operations","Director of Operations"]+hr
+        if any(w in role_lower for w in ["product","product manager"]): return ["CPO","VP of Product","Director of Product","CTO"]+hr
+        return ["CEO","COO","VP of HR","Director of HR","Talent Acquisition Manager","Head of People"]
 
 def get_ai_salary(target_role: str):
-    # Role-based fallback table first (instant, no API cost)
-    role_lower = target_role.lower()
-    salary_map = [
-        (["ceo","chief executive"],200000),(["coo","chief operating"],180000),
-        (["cfo","chief financial"],190000),(["cto","chief technology"],200000),
-        (["cmo","chief marketing"],175000),(["cro","chief revenue"],185000),
-        (["vp of sales","vp sales","vice president of sales"],160000),
-        (["vp of marketing","vp marketing"],150000),
-        (["vp of engineering","vp engineering"],190000),
-        (["vp of product","vp product"],170000),
-        (["vp of hr","vp human resources","vp people"],140000),
-        (["vp of operations","vp ops"],145000),
-        (["director of sales","sales director"],130000),
-        (["director of marketing"],120000),
-        (["director of engineering"],160000),
-        (["director of hr","director of people"],115000),
-        (["director of operations"],120000),
-        (["director of product"],140000),
-        (["head of sales"],125000),(["head of marketing"],115000),
-        (["head of engineering"],155000),(["head of product"],135000),
-        (["sales manager"],95000),(["marketing manager"],90000),
-        (["product manager"],115000),(["engineering manager"],145000),
-        (["account executive"],85000),(["business development"],90000),
-        (["recruiter","talent acquisition"],70000),
-        (["data scientist"],110000),(["data analyst"],80000),
-        (["software engineer","software developer"],120000),
-        (["senior software engineer"],145000),
-    ]
-    for keywords, salary in salary_map:
-        if any(kw in role_lower for kw in keywords):
-            return salary
-    # AI fallback for roles not in table
     try:
-        r = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            max_tokens=20,
-            messages=[{"role":"user","content":
-                f'What is the typical minimum annual base salary in USD for a "{target_role}" at a US mid-size company (50-5000 employees)? '
-                f'Return ONLY a single integer number, no text, no symbols. Example: 125000'}])
-        val = int(''.join(filter(str.isdigit, r.choices[0].message.content.strip()[:10])))
-        return val if 40000 < val < 500000 else 90000
-    except: return 90000
+        r = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"user","content":f'Minimum annual salary USD for "{target_role}" at a US company. Return ONLY a number like 85000.'}])
+        return int(''.join(filter(str.isdigit, r.choices[0].message.content.strip()))) or 80000
+    except: return 80000
 
 def search_jobs_jsearch(role, location, date_posted="week", min_salary=0, excluded_industries="", exclude_intern=True, exclude_remote=True, exclude_apprentice=True, page=1):
     api_key = os.getenv("RAPIDAPI_KEY","")
@@ -571,101 +482,31 @@ def search_jobs_jsearch(role, location, date_posted="week", min_salary=0, exclud
         return {"jobs":jobs,"total":len(jobs),"error":None}
     except Exception as e: return {"error":str(e),"jobs":[],"total":0}
 
-def search_companies_apollo(role,location="United States",min_employees=50,max_employees=10000,excluded_industries="",industry_focus="",page=1):
+def search_companies_apollo(role,location="United States",min_employees=50,max_employees=10000,excluded_industries="",page=1):
     api_key=os.getenv("APOLLO_API_KEY","")
     if not api_key: return {"error":"Apollo not configured","jobs":[]}
     headers={"Content-Type":"application/json","Cache-Control":"no-cache","X-Api-Key":api_key}
     excluded=[i.strip().lower() for i in excluded_industries.split(",") if i.strip()]
-    excl_kw=["university","college","non-profit","nonprofit","ngo","charity","foundation"]+excluded
-    # Build keyword tags for industry focus
-    industry_tags=[]
-    if industry_focus:
-        # Map common industry names to Apollo keyword tags
-        focus_lower=industry_focus.lower()
-        tag_map={
-            "staffing":["staffing","recruiting","talent acquisition"],
-            "recruiting":["staffing","recruiting","talent acquisition"],
-            "software":["software","saas","technology"],
-            "saas":["saas","software","cloud"],
-            "tech":["technology","software","saas"],
-            "healthcare":["healthcare","medical","health"],
-            "finance":["finance","financial services","banking"],
-            "manufacturing":["manufacturing","industrial"],
-            "retail":["retail","ecommerce","consumer goods"],
-            "education":["education","edtech","learning"],
-            "real estate":["real estate","property"],
-            "marketing":["marketing","advertising","media"],
-            "logistics":["logistics","supply chain","transportation"],
-            "legal":["legal","law firm"],
-            "consulting":["consulting","management consulting"],
-        }
-        for key,tags in tag_map.items():
-            if key in focus_lower:
-                industry_tags=tags; break
-        if not industry_tags:
-            # Use raw input as tags
-            industry_tags=[t.strip() for t in industry_focus.split(",") if t.strip()]
-    # Use people search (works on Basic) — extract unique companies from results
-    role_lower = role.lower()
-    if any(w in role_lower for w in ["vp","vice president","chief","cro","ceo","president"]):
-        titles = [role, "VP of Sales", "Chief Revenue Officer", "Director of Sales", "VP of Revenue"]
-    elif any(w in role_lower for w in ["director"]):
-        titles = [role, "VP of Sales", "Director of Business Development", "Head of Sales"]
-    elif any(w in role_lower for w in ["manager","head"]):
-        titles = [role, "Sales Manager", "Director of Sales", "Head of Sales"]
-    else:
-        titles = [role, "VP of "+role, "Director of "+role, "Head of "+role, "Chief "+role+" Officer"]
-    titles = titles[:6]
+    excl_kw=["staffing","recruiting","recruiter","talent","consulting","consultancy","human resources","university","college","non-profit","nonprofit","ngo"]+excluded
     try:
-        payload={
-            "page":page,"per_page":50,
-            "person_titles":titles,
-            "organization_locations":[location],
-            "organization_num_employees_ranges":[f"{min_employees},{max_employees}"]
-        }
-        if industry_tags:
-            payload["q_organization_keyword_tags"]=industry_tags
-            print(f"[Apollo] Industry focus filter: {industry_tags}")
-        r=requests.post("https://api.apollo.io/api/v1/mixed_people/api_search",headers=headers,
-            json=payload,timeout=20)
-        if not r.text or r.status_code!=200:
-            return {"error":f"Apollo HTTP {r.status_code}: {r.text[:200]}","jobs":[],"total":0}
-        data=r.json()
-        people=data.get("people",data.get("contacts",[]))
-        if not people: return {"error":"No results","jobs":[],"total":0}
-        if people:
-            p0=people[0]
-            print(f"[Apollo Debug] Person keys: {list(p0.keys())[:15]}")
-            print(f"[Apollo Debug] org_name={p0.get('organization_name')}, org_industry={p0.get('organization_industry')}, org_revenue={p0.get('organization_revenue_printed')}")
+        r=requests.post("https://api.apollo.io/api/v1/mixed_companies/search",headers=headers,
+            json={"page":page,"per_page":25,"organization_locations":[location],"organization_num_employees_ranges":[f"{min_employees},{max_employees}"]},timeout=20)
+        if not r.text or r.status_code!=200: return {"error":f"Apollo HTTP {r.status_code}","jobs":[],"total":0}
+        data=r.json(); orgs=data.get("organizations",[]); total=data.get("pagination",{}).get("total_entries",0)
+        if not orgs: return {"error":"No companies found","jobs":[],"total":0}
         jobs=[]; seen=set()
-        for p in people:
-            org=p.get("organization",{}) or {}
-            name=(p.get("organization_name") or org.get("name") or "").strip()
-            if not name or name.lower() in seen: continue
+        for org in orgs:
+            name=org.get("name","").strip()
+            if not name or name in seen: continue
             if any(kw and kw in name.lower() for kw in excl_kw): continue
-            seen.add(name.lower())
-            domain=p.get("organization_domain","") or org.get("primary_domain","") or ""
-            revenue=p.get("organization_revenue_printed","") or org.get("annual_revenue_printed","") or ""
-            logo=p.get("organization_logo_url","") or org.get("logo_url","") or (f"https://logo.clearbit.com/{domain}" if domain else "")
-            industry=p.get("organization_industry","") or org.get("industry","") or ""
-            jobs.append({
-                "employer_name":name,
-                "job_title":f"Active company — hiring {role}",
-                "employer_logo":logo,
-                "location":p.get("organization_city","") or location,
-                "industry": industry,
-                "company_type": industry,
-                "salary_display":f"Revenue: {revenue}" if revenue else "Not disclosed",
-                "min_salary":0,"max_salary":0,
-                "job_posted":"Active company","is_remote":False,
-                "apply_link":p.get("organization_website_url","") or org.get("website_url",""),
-                "employer_website":p.get("organization_website_url","") or org.get("website_url",""),
-                "domain":domain,
-                "phone":"",
-                "linkedin_url":p.get("organization_linkedin_url","") or org.get("linkedin_url","") or "",
-                "source":"apollo_people"
-            })
-        return {"jobs":jobs,"total":len(jobs),"error":None,"source":"apollo"}
+            seen.add(name); domain=org.get("primary_domain",""); revenue=org.get("organization_revenue_printed","")
+            jobs.append({"employer_name":name,"job_title":f"Active company — hiring {role}","employer_logo":org.get("logo_url",""),
+                "location":location,"salary_display":f"Revenue: ${revenue}" if revenue else "Not disclosed",
+                "min_salary":0,"max_salary":0,"job_posted":"Active company","is_remote":False,
+                "apply_link":org.get("website_url",""),"employer_website":org.get("website_url",""),
+                "company_type":"","domain":domain,"phone":org.get("sanitized_phone","") or "",
+                "linkedin_url":org.get("linkedin_url",""),"source":"apollo_org"})
+        return {"jobs":jobs,"total":total,"error":None,"source":"apollo"}
     except Exception as e: return {"error":str(e),"jobs":[],"total":0}
 
 def search_jobs_adzuna(role,location,min_salary=0,excluded_industries="",exclude_intern=True,exclude_remote=True,page=1):
@@ -846,9 +687,7 @@ def get_apollo_top_people(company_name,company_domain,titles):
                 print(f"[Apollo] Skipping {first} ({p.get('title','')}) — not relevant")
                 continue
             seen.add(first)
-            full = p.get("name","") or f"{first} {p.get('last_name','')}".strip()
-            last = p.get("last_name","") or (full.split(" ",1)[1] if " " in full else "")
-            people.append({"first_name":first,"last_name":last,"full_name":full or first,
+            people.append({"first_name":first,"last_name":"","full_name":first,
                 "title":p.get("title","").split(",")[0].strip(),"linkedin_url":p.get("linkedin_url","") or "",
                 "email":"","email_source":"unknown","confidence_score":0,"location":"",
                 "apollo_id":p.get("id",""),"has_email":p.get("has_email",False),"source":"apollo"})
@@ -985,8 +824,8 @@ async def home(session_token: str = Cookie(default=None)):
 @app.post("/campaigns")
 async def create_campaign(campaign: CampaignCreate):
     db = get_db(); cursor = db.cursor()
-    cursor.execute("""INSERT INTO campaigns (name,target_role,target_location,company_size_min,company_size_max,min_salary,excluded_industries,exclude_intern,exclude_remote,exclude_apprentice,job_date_filter,notes,industry_focus) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-        (campaign.name,campaign.target_role,campaign.target_location,campaign.company_size_min,campaign.company_size_max,campaign.min_salary,campaign.excluded_industries,campaign.exclude_intern,campaign.exclude_remote,campaign.exclude_apprentice,campaign.job_date_filter,campaign.notes,campaign.industry_focus or ""))
+    cursor.execute("""INSERT INTO campaigns (name,target_role,target_location,company_size_min,company_size_max,min_salary,excluded_industries,exclude_intern,exclude_remote,exclude_apprentice,job_date_filter,notes) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+        (campaign.name,campaign.target_role,campaign.target_location,campaign.company_size_min,campaign.company_size_max,campaign.min_salary,campaign.excluded_industries,campaign.exclude_intern,campaign.exclude_remote,campaign.exclude_apprentice,campaign.job_date_filter,campaign.notes))
     db.commit(); cid=cursor.lastrowid; cursor.close(); db.close()
     return {"message":"Campaign created!","id":cid}
 
@@ -1009,8 +848,8 @@ async def get_campaign(campaign_id: int):
 @app.put("/campaigns/{campaign_id}")
 async def update_campaign(campaign_id: int, campaign: CampaignCreate):
     db=get_db(); cursor=db.cursor()
-    cursor.execute("""UPDATE campaigns SET name=%s,target_role=%s,target_location=%s,company_size_min=%s,company_size_max=%s,min_salary=%s,excluded_industries=%s,exclude_intern=%s,exclude_remote=%s,exclude_apprentice=%s,job_date_filter=%s,notes=%s,industry_focus=%s WHERE id=%s""",
-        (campaign.name,campaign.target_role,campaign.target_location,campaign.company_size_min,campaign.company_size_max,campaign.min_salary,campaign.excluded_industries,campaign.exclude_intern,campaign.exclude_remote,campaign.exclude_apprentice,campaign.job_date_filter,campaign.notes,campaign.industry_focus or "",campaign_id))
+    cursor.execute("""UPDATE campaigns SET name=%s,target_role=%s,target_location=%s,company_size_min=%s,company_size_max=%s,min_salary=%s,excluded_industries=%s,exclude_intern=%s,exclude_remote=%s,exclude_apprentice=%s,job_date_filter=%s,notes=%s WHERE id=%s""",
+        (campaign.name,campaign.target_role,campaign.target_location,campaign.company_size_min,campaign.company_size_max,campaign.min_salary,campaign.excluded_industries,campaign.exclude_intern,campaign.exclude_remote,campaign.exclude_apprentice,campaign.job_date_filter,campaign.notes,campaign_id))
     db.commit(); cursor.close(); db.close(); return {"message":"Campaign updated!"}
 
 @app.delete("/campaigns/{campaign_id}")
@@ -1027,10 +866,7 @@ async def search_jobs(campaign_id: int, page: int = 1):
     if not c: raise HTTPException(404,"Campaign not found")
     # Apollo first
     print("[Search] Trying Apollo company search first...")
-    result = search_companies_apollo(c["target_role"], c.get("target_location","United States"),
-        excluded_industries=c.get("excluded_industries",""),
-        industry_focus=c.get("industry_focus",""),
-        page=page)
+    result = search_companies_apollo(c["target_role"], c.get("target_location","United States"), page=page)
     if result.get("jobs"):
         print(f"[Search] Apollo returned {len(result['jobs'])} companies")
         return result
@@ -1177,10 +1013,10 @@ def autofind_contacts_for_companies(company_ids: list, campaign_id: int):
             # Source 4: Snov domain search — finds emails by company domain
             if not all_people and domain:
                 try:
-                    snov_cid=os.getenv("SNOV_CLIENT_ID",""); snov_cs=os.getenv("SNOV_CLIENT_SECRET","")
-                    if snov_cid and snov_cs:
+                    cid=os.getenv("SNOV_CLIENT_ID",""); cs=os.getenv("SNOV_CLIENT_SECRET","")
+                    if cid and cs:
                         token=requests.post("https://api.snov.io/v1/oauth/access_token",
-                            data={"grant_type":"client_credentials","client_id":snov_cid,"client_secret":snov_cs},timeout=10).json().get("access_token")
+                            data={"grant_type":"client_credentials","client_id":cid,"client_secret":cs},timeout=10).json().get("access_token")
                         if token:
                             result=requests.post("https://api.snov.io/v2/domain-search",
                                 data={"access_token":token,"domain":domain,"type":"personal","limit":10},timeout=15).json()
@@ -1205,7 +1041,6 @@ def autofind_contacts_for_companies(company_ids: list, campaign_id: int):
                 print(f"[AutoFind] No contacts found for {cname}"); time.sleep(0.2); continue
 
             # Save contacts to DB
-            company_id_for_save = company["id"]
             db=get_db(); c=db.cursor(); saved=0
             for person in all_people:
                 try:
@@ -1214,7 +1049,7 @@ def autofind_contacts_for_companies(company_ids: list, campaign_id: int):
                         continue
                     # Skip duplicates
                     c.execute("SELECT id FROM leads WHERE full_name=%s AND company_id=%s",
-                              (full_name, company_id_for_save))
+                              (full_name, cid))
                     if c.fetchone(): continue
 
                     # Try to enrich email if missing
@@ -1230,20 +1065,6 @@ def autofind_contacts_for_companies(company_ids: list, campaign_id: int):
                             if ed.get("email"):
                                 email=ed["email"]; email_source=ed["email_source"]
                                 confidence_score=ed["confidence_score"]
-                                # Update full_name from Apollo match if better
-                                if ed.get("full_name") and ed["full_name"].strip():
-                                    full_name=ed["full_name"]
-                        except: pass
-
-                    # Fallback: try Prospeo + Snov if Apollo match failed
-                    if not email:
-                        try:
-                            ef = enrich_with_email(
-                                person.get("first_name",""), person.get("last_name",""),
-                                person.get("linkedin_url",""), domain)
-                            if ef.get("email"):
-                                email=ef["email"]; email_source=ef["email_source"]
-                                confidence_score=ef["confidence_score"]
                         except: pass
 
                     # Skip contacts with no email — must have email to save
@@ -1252,24 +1073,14 @@ def autofind_contacts_for_companies(company_ids: list, campaign_id: int):
                         print(f"[AutoFind] Skipping {full_name} — no email found")
                         continue
 
-                    # Duplicate check by email too (catches same person saved via different name)
-                    c.execute("SELECT id FROM leads WHERE email=%s AND campaign_id=%s",
-                              (email, campaign_id))
-                    if c.fetchone():
-                        print(f"[AutoFind] Skipping {full_name} — email already exists")
-                        continue
-
-                    # Title relevance check — sales/revenue side only
-                    SALES_KEYWORDS = [
-                        "vp of sales","vp sales","vice president of sales","vice president sales",
-                        "chief revenue","cro","chief sales","director of sales","director sales",
-                        "head of sales","head of revenue","head of business development",
-                        "vp of revenue","vp revenue","vp of business development",
-                        "managing director","president","founder","ceo","owner","partner",
-                        "sales director","revenue","business development","account executive",
-                        "vp","vice president","director","chief","head of","executive"
+                    # Title relevance check — keyword based, not exact match
+                    RELEVANT_KEYWORDS = [
+                        "talent","recruit","hr","human resource","people","staffing",
+                        "hiring","acquisition","workforce","personnel","vp","vice president",
+                        "director","chief","head of","president","founder","ceo","coo","cto",
+                        "partner","managing","principal","executive"
                     ]
-                    title_match = any(kw in person_title for kw in SALES_KEYWORDS)
+                    title_match = any(kw in person_title for kw in RELEVANT_KEYWORDS)
                     if not title_match:
                         print(f"[AutoFind] Skipping {full_name} ({person.get('title','')}) — title not relevant")
                         continue
@@ -1289,7 +1100,7 @@ def autofind_contacts_for_companies(company_ids: list, campaign_id: int):
                          company.get("industry",""), person.get("location","") or company.get("location",""),
                          email, 1 if email else 0, email_source, confidence_score,
                          person.get("linkedin_url",""), target_role,
-                         campaign_id, company_id_for_save, "Auto-found on company save"))
+                         campaign_id, cid, "Auto-found on company save"))
                     saved+=1
                 except Exception as e:
                     print(f"[AutoFind] Save error for {full_name}: {e}")
@@ -1299,7 +1110,7 @@ def autofind_contacts_for_companies(company_ids: list, campaign_id: int):
             time.sleep(0.5)
 
         except Exception as e:
-            print(f"[AutoFind] Error processing company {company.get('name','unknown') if 'company' in dir() else cid}: {e}")
+            print(f"[AutoFind] Error processing company {cid}: {e}")
 
     print(f"[AutoFind] Done — processed {len(company_ids)} companies")
 
@@ -1338,24 +1149,10 @@ async def auto_find_contacts(company_id: int, domain_override: str = ""):
     cursor.execute("SELECT * FROM companies WHERE id=%s",(company_id,))
     company=cursor.fetchone()
     if not company: raise HTTPException(404,"Company not found")
-
-    # Check if contacts already exist — avoid burning credits if autofind already ran
-    cursor.execute("SELECT COUNT(*) as cnt FROM leads WHERE company_id=%s AND email IS NOT NULL AND email != ''",(company_id,))
-    existing_count = cursor.fetchone()["cnt"]
-
     cursor.execute("SELECT * FROM campaigns WHERE id=%s",(company["campaign_id"],))
     campaign=cursor.fetchone()
     target_role=campaign["target_role"] if campaign else ""
     cursor.close(); db.close()
-
-    if existing_count > 0:
-        print(f"[FindDM] {company['name']} already has {existing_count} contacts — skipping API calls to save credits")
-        db2=get_db(); c2=db2.cursor(dictionary=True)
-        c2.execute("SELECT * FROM leads WHERE company_id=%s",(company_id,))
-        existing=c2.fetchall(); c2.close(); db2.close()
-        return {"success":True,"contacts_added":0,"contacts_skipped":existing_count,
-                "total_found":existing_count,"people":existing,
-                "message":f"{existing_count} contacts already found for {company['name']}. Delete them first to re-run."}
     decision_titles=get_contact_titles(target_role) if target_role else ["CEO","President","VP of HR","Head of People","Talent Acquisition Manager","CTO","CFO"]
     if domain_override: raw_domain=domain_override
     else:
@@ -1436,9 +1233,6 @@ async def auto_find_contacts(company_id: int, domain_override: str = ""):
         if not email:
             print(f"[FindDM] Skipping {person.get('full_name','')} — no email found")
             continue
-        # Email-based duplicate check (catches same person with different name)
-        cursor.execute("SELECT id FROM leads WHERE email=%s AND campaign_id=%s",(email, company.get("campaign_id",0)))
-        if cursor.fetchone(): skipped+=1; enriched.append({**person,"email":"exists","saved":False}); continue
         # Auto-quality filter: skip if confidence too low
         if confidence_score < 70:
             print(f"[FindDM] Skipping {person.get('full_name','')} — low confidence ({confidence_score})")
@@ -1450,44 +1244,6 @@ async def auto_find_contacts(company_id: int, domain_override: str = ""):
         added+=1; enriched.append({**person,"email":email,"email_source":email_source,"confidence_score":confidence_score,"saved":True})
     db.commit(); cursor.close(); db.close()
     return {"success":True,"contacts_added":added,"contacts_skipped":skipped,"total_found":len(all_people),"people":enriched,"message":f"Found {len(all_people)} decision makers at {company_name}, saved {added}"}
-
-@app.patch("/companies/{company_id}/enrich")
-async def enrich_company(company_id: int):
-    db=get_db(); cursor=db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM companies WHERE id=%s",(company_id,))
-    company=cursor.fetchone()
-    if not company: cursor.close(); db.close(); raise HTTPException(404,"Not found")
-    name=company["name"]; updates={}
-    # Try Clearbit for domain/industry
-    try:
-        r=requests.get("https://autocomplete.clearbit.com/v1/companies/suggest",
-            params={"query":name},timeout=8)
-        results=r.json()
-        match=next((c for c in results if c.get("name","").lower()==name.lower()),results[0] if results else None)
-        if match:
-            if not company.get("website") and match.get("domain"): updates["website"]=match["domain"]
-            if not company.get("industry") and match.get("type"): updates["industry"]=match["type"]
-    except: pass
-    # Try Apollo org search for revenue/industry
-    try:
-        api_key=os.getenv("APOLLO_API_KEY","")
-        if api_key:
-            r=requests.post("https://api.apollo.io/api/v1/organizations/enrich",
-                headers={"Content-Type":"application/json","X-Api-Key":api_key},
-                json={"domain":company.get("website","") or updates.get("website","")},timeout=10)
-            if r.status_code==200:
-                org=r.json().get("organization",{}) or {}
-                if org.get("industry") and not company.get("industry"): updates["industry"]=org["industry"]
-                if org.get("annual_revenue_printed"): updates["salary_range"]=f"Revenue: {org['annual_revenue_printed']}"
-                if org.get("city") and not company.get("location"): updates["location"]=f"{org.get('city','')}, {org.get('country','US')}"
-    except: pass
-    if updates:
-        set_clause=",".join([f"{k}=%s" for k in updates.keys()])
-        cursor2=db.cursor()
-        cursor2.execute(f"UPDATE companies SET {set_clause} WHERE id=%s",(*updates.values(),company_id))
-        db.commit(); cursor2.close()
-    cursor.close(); db.close()
-    return {"success":True,"updated":list(updates.keys()),"company_id":company_id}
 
 @app.delete("/companies/{company_id}")
 async def delete_company(company_id: int):
@@ -1572,47 +1328,34 @@ async def bulk_send_by_role(campaign_id: int, request: BulkEmailRequest, backgro
 
     sent=0; failed=0; results=[]
     try:
-        import smtplib, time
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.text import MIMEText
-        srv=smtplib.SMTP("smtp.gmail.com",587); srv.starttls()
-        srv.login(gmail_user, gmail_pass)
-
         sc = request.scenario.strip() if request.scenario else ""
         for lead in leads:
             try:
-                # Build role-specific smart prompt
                 if sc:
-                    prompt = f"You are an expert cold email writer. Write a short cold email.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nIndustry: {lead.get('industry','')} | Hiring for: {lead.get('target_role','')}\nUser intent for {lead['title']}: {sc}\nWrite email tailored to this person role and intent. Max 75 words. One CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
+                    prompt = f"Expert cold email writer.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nUser intent: {sc}\nMax 75 words. One CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
                 else:
-                    prompt = f"Write a short professional cold email to a {lead['title']}.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nIndustry: {lead.get('industry','')} | Company hiring: {lead.get('target_role','')}\nRole-relevant email. Max 75 words. Clear CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
-                ai_r = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    max_tokens=500,
-                    messages=[{"role":"user","content":prompt}]
-                )
+                    prompt = f"Write short B2B cold email to {lead['title']}.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nMax 75 words. Clear CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
+                ai_r = client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
                 raw = ai_r.choices[0].message.content.strip()
                 subject = raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                 body = raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
-
-                msg = MIMEMultipart("alternative")
-                msg["Subject"]=subject; msg["From"]=gmail_user; msg["To"]=lead["email"]
-                msg.attach(MIMEText(body,"plain"))
-                srv.sendmail(gmail_user, lead["email"], msg.as_string())
-
-                db2=get_db(); c2=db2.cursor()
-                c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
-                db2.commit(); c2.close(); db2.close()
-                sent+=1
-                results.append({"name":lead.get("full_name",""),"email":lead["email"],"title":lead["title"],"status":"sent"})
+                body = body + get_email_footer(lead["id"])
+                result = send_via_resend(lead["email"], subject, body)
+                if result["success"]:
+                    db2=get_db(); c2=db2.cursor()
+                    c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
+                    db2.commit(); c2.close(); db2.close()
+                    sent+=1
+                    results.append({"name":lead.get("full_name",""),"email":lead["email"],"title":lead["title"],"status":"sent"})
+                else:
+                    failed+=1
+                    results.append({"name":lead.get("full_name",""),"email":lead["email"],"title":lead["title"],"status":"failed","error":result["error"]})
                 time.sleep(1)
             except Exception as e:
                 failed+=1
                 results.append({"name":lead.get("full_name",""),"email":lead["email"],"title":lead["title"],"status":"failed","error":str(e)})
-
-        srv.quit()
     except Exception as e:
-        return {"success":False,"message":f"SMTP error: {str(e)}","sent":sent,"failed":failed}
+        return {"success":False,"message":f"Send error: {str(e)}","sent":sent,"failed":failed}
 
     return {
         "success": True,
@@ -1836,7 +1579,7 @@ async def can_send_check(lead_id: int):
 async def get_rate_limit(campaign_id: int): return check_rate_limit(campaign_id)
 
 @app.post("/generate-email")
-async def generate_email(request: EmailRequest, request_obj: Request):
+async def generate_email(request: EmailRequest):
     db=get_db(); cursor=db.cursor(dictionary=True)
     cursor.execute("SELECT * FROM leads WHERE id=%s",(request.lead_id,))
     lead=cursor.fetchone(); cursor.close(); db.close()
@@ -1930,45 +1673,32 @@ async def generate_email(request: EmailRequest, request_obj: Request):
             )
 
     if not prompt: raise HTTPException(400,"Invalid email type")
-    response=client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
+    response=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
     raw=response.choices[0].message.content.strip()
-    print(f"[Groq Raw] {repr(raw[:300])}")
     subject=""; body=""
-    # Try multiple parsing strategies
     if "Subject:" in raw:
         subject=raw.split("Subject:",1)[1].split("\n")[0].strip()
-        subject=subject.strip('"').strip("*").strip()
-    if "Body:" in raw:
-        body=raw.split("Body:",1)[1].strip()
-    elif "body:" in raw.lower():
-        body=raw.lower().split("body:",1)[1].strip()
-        body=raw[raw.lower().index("body:")+5:].strip()
+    if "Body:" in raw: body=raw.split("Body:",1)[1].strip()
     elif subject and "\n" in raw:
         lines=raw.split("\n"); body_lines=[]; past=False
         for line in lines:
-            if line.startswith("Subject:") or line.lower().startswith("subject:"): past=True; continue
+            if line.startswith("Subject:"): past=True; continue
             if past and line.strip(): body_lines.append(line)
         body="\n".join(body_lines).strip()
     if not body: body=raw
-    # Clean markdown formatting Groq sometimes adds
-    body=body.replace("**","").replace("##","").strip()
-    # Append Calendly link + CAN-SPAM footer
+    # Append CAN-SPAM unsubscribe footer + Calendly link
     try:
         db_s=get_db(); c_s=db_s.cursor(dictionary=True)
-        c_s.execute("SELECT calendly_url FROM user_email_settings WHERE calendly_url IS NOT NULL AND calendly_url!='' LIMIT 1")
+        c_s.execute("SELECT calendly_url FROM user_email_settings LIMIT 1")
         es=c_s.fetchone(); c_s.close(); db_s.close()
-        cal_url = es.get("calendly_url","") if es else ""
-        print(f"[Calendly] URL from DB: {repr(cal_url)}")
-    except Exception as e:
-        cal_url = ""
-        print(f"[Calendly] Error: {e}")
-    if cal_url and cal_url.strip():
-        body = body + f"\n\nBook a 15-min call here: {cal_url.strip()}"
-        print(f"[Calendly] Appended to email body")
+        cal_url = es.get("calendly_url") if es else None
+    except: cal_url = None
     body = body + get_email_footer(request.lead_id)
     db=get_db(); cursor=db.cursor()
     cursor.execute("INSERT INTO emails (lead_id,subject,body,email_type) VALUES (%s,%s,%s,%s)",(request.lead_id,subject,body,request.email_type))
-    # NOTE: Status is updated to 'emailed' only when email is actually SENT, not generated
+    if request.email_type=="cold":
+        cursor.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(request.lead_id,))
+        if lead.get("campaign_id"): increment_email_count(lead["campaign_id"])
     db.commit(); cursor.close(); db.close()
     return {"subject":subject,"body":body,"email_type":request.email_type,
             "confidence_score":lead.get("confidence_score",0),"email_source":lead.get("email_source","unknown")}
@@ -2127,18 +1857,14 @@ async def send_email(lead_id: int, request: SendEmailRequest, session_token: str
     lead=cursor.fetchone(); cursor.close(); db.close()
     if not lead: raise HTTPException(404,"Lead not found")
     if not lead.get("email"): raise HTTPException(400,"Lead has no email address")
-    gmail_user,gmail_pass=get_user_gmail(session_token)
-    if not gmail_user or not gmail_pass: raise HTTPException(400,"Gmail not configured. Go to Email Settings.")
-    try:
-        msg=MIMEMultipart("alternative"); msg["Subject"]=request.subject; msg["From"]=gmail_user; msg["To"]=lead["email"]; msg["Reply-To"]=gmail_user
-        msg.attach(MIMEText(request.body,"plain"))
-        with smtplib.SMTP_SSL("smtp.gmail.com",465) as srv: srv.login(gmail_user,gmail_pass); srv.sendmail(gmail_user,lead["email"],msg.as_string())
+    result=send_via_resend(lead["email"],request.subject,request.body)
+    if result["success"]:
         db2=get_db(); c2=db2.cursor()
-        c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,)); db2.commit(); c2.close(); db2.close()
+        c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,))
+        db2.commit(); c2.close(); db2.close()
         return {"success":True,"message":f"Email sent to {lead['email']}","to":lead["email"]}
-    except smtplib.SMTPAuthenticationError: raise HTTPException(401,"Gmail auth failed — check app password in Email Settings")
-    except smtplib.SMTPRecipientsRefused: raise HTTPException(400,f"Email {lead['email']} was rejected")
-    except Exception as e: raise HTTPException(500,f"Failed to send: {str(e)}")
+    else:
+        raise HTTPException(500,f"Failed to send: {result['error']}")
 
 # ══════════════════════════════════════════════════════════════════
 # NEW FEATURES
@@ -2160,9 +1886,13 @@ async def get_email_settings(session_token: str = Cookie(default=None)):
 async def save_email_settings(request: EmailSettingsRequest, session_token: str = Cookie(default=None)):
     user=get_current_user(session_token)
     if not user: raise HTTPException(401,"Not logged in")
-    try:
-        srv=smtplib.SMTP("smtp.gmail.com",587); srv.starttls(); srv.login(request.gmail_user,request.gmail_app_password); srv.quit()
-    except Exception as e: raise HTTPException(400,f"Gmail connection failed: {str(e)}")
+    # Test Resend API instead of Gmail SMTP
+    resend_key=os.getenv("RESEND_API_KEY","")
+    if resend_key:
+        try:
+            r=requests.get("https://api.resend.com/domains",headers={"Authorization":f"Bearer {resend_key}"},timeout=10)
+            if r.status_code not in (200,403): raise Exception(f"Resend returned {r.status_code}")
+        except Exception as e: raise HTTPException(400,f"Resend connection failed: {str(e)}")
     db=get_db(); cursor=db.cursor()
     cursor.execute("""INSERT INTO user_email_settings (user_id,gmail_user,gmail_app_password,imap_enabled,scan_frequency,calendly_url,base_url,daily_send_limit)
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE gmail_user=%s,gmail_app_password=%s,imap_enabled=%s,scan_frequency=%s,calendly_url=%s,base_url=%s,daily_send_limit=%s""",
@@ -2171,7 +1901,7 @@ async def save_email_settings(request: EmailSettingsRequest, session_token: str 
          request.gmail_user,request.gmail_app_password,request.imap_enabled,request.scan_frequency,
          request.calendly_url,request.base_url or "http://localhost:8000",request.daily_send_limit or 20))
     db.commit(); cursor.close(); db.close()
-    return {"success":True,"message":"Gmail connected successfully ✓"}
+    return {"success":True,"message":"Settings saved ✓ (Emails send via Resend API)"}
 
 @app.get("/campaigns/{campaign_id}/cooldown")
 async def get_cooldown_settings(campaign_id: int):
@@ -2204,42 +1934,28 @@ async def bulk_send_emails(campaign_id: int, request: BulkEmailRequest, session_
     eligible=cursor.fetchall(); cursor.close(); db.close()
     if not eligible: return {"success":False,"message":"No eligible leads — all in cooldown or missing emails.","sent":0,"skipped":0}
     sent=0; failed=0; results=[]
-    try:
-        srv=smtplib.SMTP_SSL("smtp.gmail.com",465); srv.login(gmail_user,gmail_pass)
-        for lead in eligible:
-            try:
-                sc_bulk=request.scenario.strip() if request.scenario else ""
-                if sc_bulk:
-                    prompt=(
-                        "You are an expert cold email writer. Write a short professional cold email.\n"
-                        f"Lead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\n"
-                        f"Industry: {lead.get('industry','')} | Target: {lead.get('target_role','')}\n"
-                        f"User intent: {sc_bulk}\n"
-                        "Read intent and write most appropriate email (recruitment/product/freelance/student/other).\n"
-                        "Max 75 words. Personalized. Single CTA.\n"
-                        "Return ONLY:\nSubject: [subject]\nBody: [body]"
-                    )
-                else:
-                    prompt=(
-                        "Write a short professional B2B cold email for a US/UK recruitment firm.\n"
-                        f"Lead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\n"
-                        f"Industry: {lead.get('industry','')} | Hiring: {lead.get('target_role','')}\n"
-                        "Rules: Max 75 words. Mention company. Focus on pre-vetted candidates. Soft CTA 15-min call.\n"
-                        "Return ONLY:\nSubject: [subject]\nBody: [body]"
-                    )
-                ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
-                raw=ai_r.choices[0].message.content.strip()
-                subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Opportunity — {lead['company']}"
-                body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
-                msg=MIMEMultipart("alternative"); msg["Subject"]=subject; msg["From"]=gmail_user; msg["To"]=lead["email"]
-                msg.attach(MIMEText(body,"plain")); srv.sendmail(gmail_user,lead["email"],msg.as_string())
+    for lead in eligible:
+        try:
+            sc_bulk=request.scenario.strip() if request.scenario else ""
+            if sc_bulk:
+                prompt=f"Expert cold email writer.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nUser intent: {sc_bulk}\nMax 75 words. Personalized. Single CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
+            else:
+                prompt=f"Write short B2B cold email.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nIndustry: {lead.get('industry','')} | Hiring: {lead.get('target_role','')}\nMax 75 words. Soft CTA 15-min call.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
+            ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
+            raw=ai_r.choices[0].message.content.strip()
+            subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
+            body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
+            body=body+get_email_footer(lead["id"])
+            result=send_via_resend(lead["email"],subject,body)
+            if result["success"]:
                 db2=get_db(); c2=db2.cursor()
-                c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],)); db2.commit(); c2.close(); db2.close()
+                c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
+                db2.commit(); c2.close(); db2.close()
                 sent+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"sent"})
-                time.sleep(1)
-            except Exception as e: failed+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"failed"})
-        srv.quit()
-    except Exception as e: return {"success":False,"message":f"SMTP error: {str(e)}","sent":sent,"failed":failed}
+            else:
+                failed+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"failed","error":result["error"]})
+            time.sleep(1)
+        except Exception as e: failed+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"failed"})
     return {"success":True,"message":f"Done: {sent} sent, {failed} failed","sent":sent,"failed":failed,"results":results}
 
 
@@ -2259,7 +1975,6 @@ async def bulk_send_emails(campaign_id: int, request: BulkEmailRequest, session_
     if not eligible: return {"success":False,"message":"No eligible leads — all in cooldown or missing emails.","sent":0,"skipped":0}
     sent=0; failed=0; results=[]
     try:
-        srv=smtplib.SMTP_SSL("smtp.gmail.com",465); srv.login(gmail_user,gmail_pass)
         for lead in eligible:
             try:
                 prompt=f"""Write a short professional B2B cold email for a US/UK recruitment firm.
@@ -2268,7 +1983,7 @@ Industry: {lead.get("industry","")} | Hiring: {lead.get("target_role","")}
 {("Recruiter context: "+request.scenario) if request.scenario else ""}
 Rules: Max 75 words. Mention company. Focus on pre-vetted candidates. Soft CTA 15-min call.
 Return ONLY:\nSubject: [subject]\nBody: [body]"""
-                ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
+                ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
                 raw=ai_r.choices[0].message.content.strip()
                 subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Opportunity — {lead['company']}"
                 body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2279,8 +1994,7 @@ Return ONLY:\nSubject: [subject]\nBody: [body]"""
                 sent+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"sent"})
                 time.sleep(1)
             except Exception as e: failed+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"failed"})
-        srv.quit()
-    except Exception as e: return {"success":False,"message":f"SMTP error: {str(e)}","sent":sent,"failed":failed}
+    except Exception as e: pass
     return {"success":True,"message":f"Done: {sent} sent, {failed} failed","sent":sent,"failed":failed,"results":results}
 
 @app.get("/followup-queue")
@@ -2316,7 +2030,6 @@ async def bulk_followup_send(request: BulkEmailRequest, session_token: str = Coo
     if not gmail_user: raise HTTPException(400,"Gmail not configured")
     sent=0; failed=0
     try:
-        srv=smtplib.SMTP_SSL("smtp.gmail.com",465); srv.login(gmail_user,gmail_pass)
         for lead in leads_to_send:
             try:
                 label="Day 3 follow-up" if request.email_type=="followup1" else "Day 7 final follow-up"
@@ -2324,7 +2037,7 @@ async def bulk_followup_send(request: BulkEmailRequest, session_token: str = Coo
 Lead: {lead["first_name"]} at {lead["company"]}
 Rules: Max 50 words. Reference previous email. Soft CTA only.
 Return ONLY: Subject: [subject]\nBody: [body]"""
-                ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
+                ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
                 raw=ai_r.choices[0].message.content.strip()
                 subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else "Following up"
                 body_text=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2334,7 +2047,6 @@ Return ONLY: Subject: [subject]\nBody: [body]"""
                 c2.execute("UPDATE leads SET emailed_at=NOW() WHERE id=%s",(lead["id"],)); db2.commit(); c2.close(); db2.close()
                 sent+=1; time.sleep(1)
             except: failed+=1
-        srv.quit()
     except Exception as e: return {"success":False,"message":str(e),"sent":sent}
     return {"success":True,"sent":sent,"failed":failed,"message":f"{sent} follow-ups sent"}
 
@@ -2382,20 +2094,13 @@ async def send_with_attachment(
     lead=cursor.fetchone(); cursor.close(); db.close()
     if not lead: raise HTTPException(404,"Lead not found")
     if not lead.get("email"): raise HTTPException(400,"Lead has no email")
-    gmail_user,gmail_pass=get_user_gmail(session_token)
-    if not gmail_user: raise HTTPException(400,"Gmail not configured")
     try:
-        msg=MIMEMultipart(); msg["Subject"]=subject; msg["From"]=gmail_user; msg["To"]=lead["email"]
-        msg.attach(MIMEText(body,"plain"))
-        if attachment:
-            file_content=await attachment.read()
-            part=MIMEBase("application","octet-stream"); part.set_payload(file_content)
-            encoders.encode_base64(part); part.add_header("Content-Disposition",f"attachment; filename={attachment.filename}")
-            msg.attach(part)
-        with smtplib.SMTP_SSL("smtp.gmail.com",465) as srv: srv.login(gmail_user,gmail_pass); srv.sendmail(gmail_user,lead["email"],msg.as_string())
-        db2=get_db(); c2=db2.cursor()
-        c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,)); db2.commit(); c2.close(); db2.close()
-        return {"success":True,"to":lead["email"],"attachment":attachment.filename if attachment else None}
+        result=send_via_resend(lead["email"],subject,body)
+        if result["success"]:
+            db2=get_db(); c2=db2.cursor()
+            c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,)); db2.commit(); c2.close(); db2.close()
+            return {"success":True,"to":lead["email"],"attachment":attachment.filename if attachment else None}
+        else: raise HTTPException(500,result["error"])
     except Exception as e: raise HTTPException(500,str(e))
 
 # ── TRACKING PIXEL & CLICK TRACKING ─────────────────────────
@@ -2490,7 +2195,7 @@ async def preview_bulk_email(campaign_id: int, request: BulkEmailRequest):
     fn=lead["first_name"]; company=lead["company"]; title=lead["title"]
     prompt=(f"You are an expert cold email writer.\nLead: {fn}, {title} at {company}\nUser intent: {sc}\nWrite appropriate cold email. Max 75 words.\nReturn ONLY:\nSubject: [subject]\nBody: [body]" if sc else f"Write professional B2B cold email.\nLead: {fn}, {title} at {company}\nMax 75 words. Soft CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]")
     try:
-        r=client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
+        r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
         raw=r.choices[0].message.content.strip()
         subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {company}"
         body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2508,18 +2213,14 @@ async def get_meeting_link():
     except: c.close(); db.close(); return {"calendly_url":""}
 
 @app.post("/meeting-link-settings")
-async def save_meeting_link(request: Request):
-    body=await request.json()
-    url=body.get("calendly_url","").strip()
-    print(f"[Calendly] Saving URL: {repr(url)}")
+async def save_meeting_link(request: dict):
+    url=request.get("calendly_url","").strip()
     db=get_db(); c=db.cursor()
     try:
         c.execute("UPDATE user_email_settings SET calendly_url=%s",(url,))
         if c.rowcount==0: c.execute("INSERT INTO user_email_settings (calendly_url) VALUES (%s)",(url,))
         db.commit()
-        print(f"[Calendly] Saved successfully, rows affected: {c.rowcount}")
-    except Exception as e:
-        print(f"[Calendly] Save error: {e}")
+    except:
         try: c.execute("ALTER TABLE user_email_settings ADD COLUMN calendly_url VARCHAR(500)"); c.execute("UPDATE user_email_settings SET calendly_url=%s",(url,)); db.commit()
         except: pass
     c.close(); db.close()
@@ -2536,80 +2237,22 @@ def get_tz_for_location(location: str) -> str:
     return "America/New_York"
 
 @app.post("/schedule-email")
-async def schedule_email_tz(request: Request):
-    body=await request.json()
-    lead_id=body.get("lead_id")
-    subject=body.get("subject","")
-    email_body=body.get("body","")
-    send_at_str=body.get("send_at","")
-    timezone=body.get("timezone","America/New_York")
-    if not lead_id or not send_at_str:
-        raise HTTPException(400,"lead_id and send_at required")
-    # Parse datetime
-    from datetime import datetime
+async def schedule_email_tz(request: dict):
+    lead_id=request.get("lead_id"); target_hour=request.get("target_hour",9)
+    db=get_db(); c=db.cursor(dictionary=True)
+    c.execute("SELECT location FROM leads WHERE id=%s",(lead_id,))
+    lead=c.fetchone(); c.close(); db.close()
+    if not lead: return {"success":False,"message":"Lead not found"}
+    tz_name=get_tz_for_location(lead.get("location",""))
+    from datetime import datetime,timedelta
     try:
-        send_at=datetime.strptime(send_at_str[:16],"%Y-%m-%dT%H:%M")
-    except:
-        return {"success":False,"message":"Invalid date format"}
-    token=request.cookies.get("session_token","")
-    db=get_db(); c=db.cursor(dictionary=True)
-    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
-    user=c.fetchone()
-    user_id=user["id"] if user else None
-    c2=db.cursor()
-    c2.execute("INSERT INTO scheduled_emails (lead_id,user_id,subject,body,send_at,timezone,status) VALUES (%s,%s,%s,%s,%s,%s,'pending')",
-        (lead_id,user_id,subject,email_body,send_at,timezone))
-    db.commit(); scheduled_id=c2.lastrowid
-    c2.close(); c.close(); db.close()
-    return {"success":True,"message":f"Email scheduled for {send_at_str}","id":scheduled_id}
-
-@app.get("/scheduled-emails")
-async def get_scheduled_emails(request: Request):
-    token=request.cookies.get("session_token","")
-    db=get_db(); c=db.cursor(dictionary=True)
-    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
-    user=c.fetchone()
-    if not user: c.close(); db.close(); raise HTTPException(401,"Not authenticated")
-    c.execute("""SELECT se.*,l.full_name,l.email,l.company,l.title
-        FROM scheduled_emails se
-        LEFT JOIN leads l ON l.id=se.lead_id
-        WHERE se.user_id=%s AND se.status='pending'
-        ORDER BY se.send_at ASC""",(user["id"],))
-    emails=c.fetchall(); c.close(); db.close()
-    for e in emails:
-        if e.get("send_at"): e["send_at"]=str(e["send_at"])
-        if e.get("created_at"): e["created_at"]=str(e["created_at"])
-    return {"scheduled":emails,"total":len(emails)}
-
-@app.delete("/scheduled-emails/{schedule_id}")
-async def cancel_scheduled_email(schedule_id: int, request: Request):
-    token=request.cookies.get("session_token","")
-    db=get_db(); c=db.cursor(dictionary=True)
-    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
-    user=c.fetchone()
-    if not user: c.close(); db.close(); raise HTTPException(401,"Not authenticated")
-    c2=db.cursor()
-    c2.execute("UPDATE scheduled_emails SET status='cancelled' WHERE id=%s AND user_id=%s",(schedule_id,user["id"]))
-    db.commit(); c2.close(); c.close(); db.close()
-    return {"success":True,"message":"Scheduled email cancelled"}
-
-@app.patch("/scheduled-emails/{schedule_id}")
-async def reschedule_email(schedule_id: int, request: Request):
-    body=await request.json()
-    new_send_at=body.get("send_at","")
-    token=request.cookies.get("session_token","")
-    from datetime import datetime
-    try: send_at=datetime.strptime(new_send_at[:16],"%Y-%m-%dT%H:%M")
-    except: return {"success":False,"message":"Invalid date format"}
-    db=get_db(); c=db.cursor(dictionary=True)
-    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
-    user=c.fetchone()
-    if not user: c.close(); db.close(); raise HTTPException(401,"Not authenticated")
-    c2=db.cursor()
-    c2.execute("UPDATE scheduled_emails SET send_at=%s WHERE id=%s AND user_id=%s AND status='pending'",
-        (send_at,schedule_id,user["id"]))
-    db.commit(); c2.close(); c.close(); db.close()
-    return {"success":True,"message":f"Rescheduled to {new_send_at}"}
+        import pytz
+        tz=pytz.timezone(tz_name); now=datetime.now(pytz.utc); pnow=now.astimezone(tz)
+        target=pnow.replace(hour=target_hour,minute=0,second=0,microsecond=0)
+        if pnow.hour>=target_hour: target+=timedelta(days=1)
+        delay=int((target.astimezone(pytz.utc)-now).total_seconds())
+    except: delay=0
+    return {"success":True,"timezone":tz_name,"send_in_seconds":delay,"delay_hours":round(delay/3600,1)}
 
 # ── CSV IMPORT ────────────────────────────────────────────────
 @app.post("/campaigns/{campaign_id}/import-csv")
@@ -2715,14 +2358,14 @@ def _send_ab_bg(group_a,group_b,scenario):
     gmail_pass=(row["gmail_app_password"] if row else None) or os.getenv("GMAIL_APP_PASSWORD","")
     if not gmail_user: return
     try:
-        srv=smtplib.SMTP("smtp.gmail.com",587); srv.starttls(); srv.login(gmail_user,gmail_pass)
+        # Using Resend API instead of SMTP
         for variant,leads in [("A",group_a),("B",group_b)]:
             for lead in leads:
                 try:
                     sc=scenario or ""
                     variant_note="Direct professional opener" if variant=="A" else "Start with a compelling question"
                     prompt=f"Write short cold email.\nLead: {lead['first_name']}, {lead['title']} at {lead['company']}\n{'Intent: '+sc if sc else 'B2B outreach'}\nVariant {variant}: {variant_note}\nMax 75 words. CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
-                    r=client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
+                    r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
                     raw=r.choices[0].message.content.strip()
                     subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                     body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2733,7 +2376,6 @@ def _send_ab_bg(group_a,group_b,scenario):
                     c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
                     db2.commit(); c2.close(); db2.close(); time.sleep(1)
                 except Exception as e: print(f"AB err: {e}")
-        srv.quit()
     except Exception as e: print(f"AB SMTP: {e}")
 
 # ── BLACKLIST CHECKER ─────────────────────────────────────────
@@ -2806,7 +2448,7 @@ async def invite_user(request: dict):
     if c.fetchone(): c.close(); db.close(); return {"success":False,"message":"User already exists"}
     hashed = hash_password(password)
     c2=db.cursor()
-    c2.execute("INSERT INTO users (username,email,password_hash,role,session_token) VALUES (%s,%s,%s,%s,NULL)",(email,email,hashed,role))
+    c2.execute("INSERT INTO users (username,password,role,created_at) VALUES (%s,%s,%s,NOW())",(email,hashed,role))
     db.commit(); c2.close(); c.close(); db.close()
     return {"success":True,"message":f"Account created for {email}","email":email,"role":role}
 
@@ -2819,41 +2461,6 @@ async def get_team():
         users=c.fetchall(); c.close(); db.close()
         return {"users":users,"total":len(users)}
     except: c.close(); db.close(); return {"users":[],"total":0}
-
-@app.delete("/auth/team/{user_id}")
-async def remove_team_member(user_id: int, request: Request):
-    db=get_db(); c=db.cursor(dictionary=True)
-    token=request.cookies.get("session_token","")
-    c.execute("SELECT id,role FROM users WHERE session_token=%s",(token,))
-    me=c.fetchone()
-    if not me: c.close(); db.close(); raise HTTPException(401,"Not authenticated")
-    if me["id"]==user_id: c.close(); db.close(); return {"success":False,"message":"Cannot delete your own account"}
-    c.execute("SELECT id,username FROM users WHERE id=%s",(user_id,))
-    target=c.fetchone()
-    if not target: c.close(); db.close(); return {"success":False,"message":"User not found"}
-    c2=db.cursor()
-    c2.execute("DELETE FROM users WHERE id=%s",(user_id,))
-    db.commit(); c2.close(); c.close(); db.close()
-    return {"success":True,"message":f"Removed {target['username']}"}
-
-@app.patch("/auth/team/{user_id}/role")
-async def change_team_role(user_id: int, request: Request):
-    body=await request.json()
-    new_role=body.get("role","member")
-    if new_role not in ("admin","member"): raise HTTPException(400,"Role must be admin or member")
-    db=get_db(); c=db.cursor(dictionary=True)
-    token=request.cookies.get("session_token","")
-    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
-    me=c.fetchone()
-    if not me: c.close(); db.close(); raise HTTPException(401,"Not authenticated")
-    if me["id"]==user_id: c.close(); db.close(); return {"success":False,"message":"Cannot change your own role"}
-    c.execute("SELECT username FROM users WHERE id=%s",(user_id,))
-    target=c.fetchone()
-    if not target: c.close(); db.close(); return {"success":False,"message":"User not found"}
-    c2=db.cursor()
-    c2.execute("UPDATE users SET role=%s WHERE id=%s",(new_role,user_id))
-    db.commit(); c2.close(); c.close(); db.close()
-    return {"success":True,"message":f"{target['username']} is now {new_role}"}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -3048,7 +2655,7 @@ async def bulk_status_update(request: dict):
 @app.get("/email-log")
 async def get_email_log(campaign_id: int = 0, days: int = 7):
     db=get_db(); c=db.cursor(dictionary=True)
-    q="""SELECT l.id as lead_id,l.full_name,l.email,l.title,l.company,l.status,l.emailed_at,l.open_count,
+    q="""SELECT l.full_name,l.email,l.title,l.company,l.status,l.emailed_at,l.open_count,
                l.email_opened,l.email_clicked,ca.name as campaign_name
          FROM leads l LEFT JOIN campaigns ca ON l.campaign_id=ca.id
          WHERE l.emailed_at >= DATE_SUB(NOW(),INTERVAL %s DAY)"""
@@ -3118,14 +2725,14 @@ def _send_tz_bg(leads, scenario):
             if delay > 0: time.sleep(min(delay, 3600))  # Max 1hr wait
         except: pass
         try:
-            srv=smtplib.SMTP("smtp.gmail.com",587); srv.starttls(); srv.login(gmail_user,gmail_pass)
+            # Using Resend API instead of SMTP
             for lead in tz_leads:
                 try:
                     sc=scenario or ""
                     prompt=(f"You are an expert cold email writer.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nUser intent: {sc}\nMax 75 words. One CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
                             if sc else
                             f"Write professional B2B cold email.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nMax 75 words.\nReturn ONLY:\nSubject: [subject]\nBody: [body]")
-                    r=client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
+                    r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
                     raw=r.choices[0].message.content.strip()
                     subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                     body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -3138,7 +2745,6 @@ def _send_tz_bg(leads, scenario):
                     db2.commit(); c2.close(); db2.close()
                     time.sleep(1)
                 except Exception as e: print(f"TZ send error: {e}")
-            srv.quit()
         except Exception as e: print(f"TZ SMTP error: {e}")
 
 # ═══════════════════════════════════════════════════════════════
