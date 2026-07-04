@@ -16,7 +16,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 import mysql.connector
-from fastapi import FastAPI, HTTPException, Cookie, Response, File, UploadFile, Form, BackgroundTasks, Body, Request
+from fastapi import FastAPI, HTTPException, Cookie, Response, File, UploadFile, Form, BackgroundTasks, Body
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -27,35 +27,6 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 
 load_dotenv()
-
-# ── RESEND EMAIL SENDER ───────────────────────────────────────
-def send_via_resend(to_email: str, subject: str, body: str, from_name: str = "LeadFlow AI") -> dict:
-    """Send email via Resend API — works on Railway (no SMTP port blocking)"""
-    api_key = os.getenv("RESEND_API_KEY", "")
-    if not api_key:
-        return {"success": False, "error": "RESEND_API_KEY not configured"}
-    try:
-        r = requests.post(
-            "https://api.resend.com/emails",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "from": f"{from_name} <onboarding@resend.dev>",
-                "to": [to_email],
-                "subject": subject,
-                "text": body,
-            },
-            timeout=15
-        )
-        data = r.json()
-        if r.status_code in (200, 201) and data.get("id"):
-            print(f"[Resend] ✓ Sent to {to_email} — ID: {data['id']}")
-            return {"success": True, "message_id": data["id"]}
-        else:
-            print(f"[Resend] Error: {data}")
-            return {"success": False, "error": str(data)}
-    except Exception as e:
-        print(f"[Resend] Exception: {e}")
-        return {"success": False, "error": str(e)}
 
 def get_db():
     return mysql.connector.connect(
@@ -283,7 +254,7 @@ async def get_me(session_token: str = Cookie(default=None)):
     if not user: raise HTTPException(401, "Not logged in")
     return {"username": user["username"], "email": user["email"]}
 
-client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=os.getenv("GROQ_API_KEY"))
+client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.getenv("OPENROUTER_API_KEY"))
 
 CONFIDENCE = {"apollo_verified":92,"apollo_unverified":70,"prospeo_linkedin":88,"prospeo_name":85,"snov":78,"generated":50,"manual":60,"unknown":0}
 SEND_THRESHOLD = 70
@@ -404,7 +375,7 @@ Examples:
 - "Software Engineer" → ["CTO","VP of Engineering","Director of Engineering","Engineering Manager","HR Manager","Technical Recruiting Manager","Director of Recruitment"]
 Return ONLY a JSON array. No explanation."""
     try:
-        response = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"user","content":prompt}])
+        response = client.chat.completions.create(model="openrouter/auto", messages=[{"role":"user","content":prompt}])
         content = response.choices[0].message.content.strip()
         if "```" in content:
             content = content.split("```")[1]
@@ -432,7 +403,7 @@ Return ONLY a JSON array. No explanation."""
 
 def get_ai_salary(target_role: str):
     try:
-        r = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"user","content":f'Minimum annual salary USD for "{target_role}" at a US company. Return ONLY a number like 85000.'}])
+        r = client.chat.completions.create(model="openrouter/auto", messages=[{"role":"user","content":f'Minimum annual salary USD for "{target_role}" at a US company. Return ONLY a number like 85000.'}])
         return int(''.join(filter(str.isdigit, r.choices[0].message.content.strip()))) or 80000
     except: return 80000
 
@@ -1328,34 +1299,46 @@ async def bulk_send_by_role(campaign_id: int, request: BulkEmailRequest, backgro
 
     sent=0; failed=0; results=[]
     try:
+        import smtplib, time
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        srv=smtplib.SMTP("smtp.gmail.com",587); srv.starttls()
+        srv.login(gmail_user, gmail_pass)
+
         sc = request.scenario.strip() if request.scenario else ""
         for lead in leads:
             try:
+                # Build role-specific smart prompt
                 if sc:
-                    prompt = f"Expert cold email writer.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nUser intent: {sc}\nMax 75 words. One CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
+                    prompt = f"You are an expert cold email writer. Write a short cold email.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nIndustry: {lead.get('industry','')} | Hiring for: {lead.get('target_role','')}\nUser intent for {lead['title']}: {sc}\nWrite email tailored to this person role and intent. Max 75 words. One CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
                 else:
-                    prompt = f"Write short B2B cold email to {lead['title']}.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nMax 75 words. Clear CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
-                ai_r = client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
+                    prompt = f"Write a short professional cold email to a {lead['title']}.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nIndustry: {lead.get('industry','')} | Company hiring: {lead.get('target_role','')}\nRole-relevant email. Max 75 words. Clear CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
+                ai_r = client.chat.completions.create(
+                    model="openrouter/auto",
+                    messages=[{"role":"user","content":prompt}]
+                )
                 raw = ai_r.choices[0].message.content.strip()
                 subject = raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                 body = raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
-                body = body + get_email_footer(lead["id"])
-                result = send_via_resend(lead["email"], subject, body)
-                if result["success"]:
-                    db2=get_db(); c2=db2.cursor()
-                    c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
-                    db2.commit(); c2.close(); db2.close()
-                    sent+=1
-                    results.append({"name":lead.get("full_name",""),"email":lead["email"],"title":lead["title"],"status":"sent"})
-                else:
-                    failed+=1
-                    results.append({"name":lead.get("full_name",""),"email":lead["email"],"title":lead["title"],"status":"failed","error":result["error"]})
+
+                msg = MIMEMultipart("alternative")
+                msg["Subject"]=subject; msg["From"]=gmail_user; msg["To"]=lead["email"]
+                msg.attach(MIMEText(body,"plain"))
+                srv.sendmail(gmail_user, lead["email"], msg.as_string())
+
+                db2=get_db(); c2=db2.cursor()
+                c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
+                db2.commit(); c2.close(); db2.close()
+                sent+=1
+                results.append({"name":lead.get("full_name",""),"email":lead["email"],"title":lead["title"],"status":"sent"})
                 time.sleep(1)
             except Exception as e:
                 failed+=1
                 results.append({"name":lead.get("full_name",""),"email":lead["email"],"title":lead["title"],"status":"failed","error":str(e)})
+
+        srv.quit()
     except Exception as e:
-        return {"success":False,"message":f"Send error: {str(e)}","sent":sent,"failed":failed}
+        return {"success":False,"message":f"SMTP error: {str(e)}","sent":sent,"failed":failed}
 
     return {
         "success": True,
@@ -1673,7 +1656,7 @@ async def generate_email(request: EmailRequest):
             )
 
     if not prompt: raise HTTPException(400,"Invalid email type")
-    response=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
+    response=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
     raw=response.choices[0].message.content.strip()
     subject=""; body=""
     if "Subject:" in raw:
@@ -1857,14 +1840,18 @@ async def send_email(lead_id: int, request: SendEmailRequest, session_token: str
     lead=cursor.fetchone(); cursor.close(); db.close()
     if not lead: raise HTTPException(404,"Lead not found")
     if not lead.get("email"): raise HTTPException(400,"Lead has no email address")
-    result=send_via_resend(lead["email"],request.subject,request.body)
-    if result["success"]:
+    gmail_user,gmail_pass=get_user_gmail(session_token)
+    if not gmail_user or not gmail_pass: raise HTTPException(400,"Gmail not configured. Go to Email Settings.")
+    try:
+        msg=MIMEMultipart("alternative"); msg["Subject"]=request.subject; msg["From"]=gmail_user; msg["To"]=lead["email"]; msg["Reply-To"]=gmail_user
+        msg.attach(MIMEText(request.body,"plain"))
+        with smtplib.SMTP_SSL("smtp.gmail.com",465) as srv: srv.login(gmail_user,gmail_pass); srv.sendmail(gmail_user,lead["email"],msg.as_string())
         db2=get_db(); c2=db2.cursor()
-        c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,))
-        db2.commit(); c2.close(); db2.close()
+        c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,)); db2.commit(); c2.close(); db2.close()
         return {"success":True,"message":f"Email sent to {lead['email']}","to":lead["email"]}
-    else:
-        raise HTTPException(500,f"Failed to send: {result['error']}")
+    except smtplib.SMTPAuthenticationError: raise HTTPException(401,"Gmail auth failed — check app password in Email Settings")
+    except smtplib.SMTPRecipientsRefused: raise HTTPException(400,f"Email {lead['email']} was rejected")
+    except Exception as e: raise HTTPException(500,f"Failed to send: {str(e)}")
 
 # ══════════════════════════════════════════════════════════════════
 # NEW FEATURES
@@ -1886,13 +1873,9 @@ async def get_email_settings(session_token: str = Cookie(default=None)):
 async def save_email_settings(request: EmailSettingsRequest, session_token: str = Cookie(default=None)):
     user=get_current_user(session_token)
     if not user: raise HTTPException(401,"Not logged in")
-    # Test Resend API instead of Gmail SMTP
-    resend_key=os.getenv("RESEND_API_KEY","")
-    if resend_key:
-        try:
-            r=requests.get("https://api.resend.com/domains",headers={"Authorization":f"Bearer {resend_key}"},timeout=10)
-            if r.status_code not in (200,403): raise Exception(f"Resend returned {r.status_code}")
-        except Exception as e: raise HTTPException(400,f"Resend connection failed: {str(e)}")
+    try:
+        srv=smtplib.SMTP("smtp.gmail.com",587); srv.starttls(); srv.login(request.gmail_user,request.gmail_app_password); srv.quit()
+    except Exception as e: raise HTTPException(400,f"Gmail connection failed: {str(e)}")
     db=get_db(); cursor=db.cursor()
     cursor.execute("""INSERT INTO user_email_settings (user_id,gmail_user,gmail_app_password,imap_enabled,scan_frequency,calendly_url,base_url,daily_send_limit)
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE gmail_user=%s,gmail_app_password=%s,imap_enabled=%s,scan_frequency=%s,calendly_url=%s,base_url=%s,daily_send_limit=%s""",
@@ -1901,7 +1884,7 @@ async def save_email_settings(request: EmailSettingsRequest, session_token: str 
          request.gmail_user,request.gmail_app_password,request.imap_enabled,request.scan_frequency,
          request.calendly_url,request.base_url or "http://localhost:8000",request.daily_send_limit or 20))
     db.commit(); cursor.close(); db.close()
-    return {"success":True,"message":"Settings saved ✓ (Emails send via Resend API)"}
+    return {"success":True,"message":"Gmail connected successfully ✓"}
 
 @app.get("/campaigns/{campaign_id}/cooldown")
 async def get_cooldown_settings(campaign_id: int):
@@ -1934,28 +1917,42 @@ async def bulk_send_emails(campaign_id: int, request: BulkEmailRequest, session_
     eligible=cursor.fetchall(); cursor.close(); db.close()
     if not eligible: return {"success":False,"message":"No eligible leads — all in cooldown or missing emails.","sent":0,"skipped":0}
     sent=0; failed=0; results=[]
-    for lead in eligible:
-        try:
-            sc_bulk=request.scenario.strip() if request.scenario else ""
-            if sc_bulk:
-                prompt=f"Expert cold email writer.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nUser intent: {sc_bulk}\nMax 75 words. Personalized. Single CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
-            else:
-                prompt=f"Write short B2B cold email.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nIndustry: {lead.get('industry','')} | Hiring: {lead.get('target_role','')}\nMax 75 words. Soft CTA 15-min call.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
-            ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",max_tokens=500,messages=[{"role":"user","content":prompt}])
-            raw=ai_r.choices[0].message.content.strip()
-            subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
-            body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
-            body=body+get_email_footer(lead["id"])
-            result=send_via_resend(lead["email"],subject,body)
-            if result["success"]:
+    try:
+        srv=smtplib.SMTP_SSL("smtp.gmail.com",465); srv.login(gmail_user,gmail_pass)
+        for lead in eligible:
+            try:
+                sc_bulk=request.scenario.strip() if request.scenario else ""
+                if sc_bulk:
+                    prompt=(
+                        "You are an expert cold email writer. Write a short professional cold email.\n"
+                        f"Lead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\n"
+                        f"Industry: {lead.get('industry','')} | Target: {lead.get('target_role','')}\n"
+                        f"User intent: {sc_bulk}\n"
+                        "Read intent and write most appropriate email (recruitment/product/freelance/student/other).\n"
+                        "Max 75 words. Personalized. Single CTA.\n"
+                        "Return ONLY:\nSubject: [subject]\nBody: [body]"
+                    )
+                else:
+                    prompt=(
+                        "Write a short professional B2B cold email for a US/UK recruitment firm.\n"
+                        f"Lead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\n"
+                        f"Industry: {lead.get('industry','')} | Hiring: {lead.get('target_role','')}\n"
+                        "Rules: Max 75 words. Mention company. Focus on pre-vetted candidates. Soft CTA 15-min call.\n"
+                        "Return ONLY:\nSubject: [subject]\nBody: [body]"
+                    )
+                ai_r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
+                raw=ai_r.choices[0].message.content.strip()
+                subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Opportunity — {lead['company']}"
+                body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
+                msg=MIMEMultipart("alternative"); msg["Subject"]=subject; msg["From"]=gmail_user; msg["To"]=lead["email"]
+                msg.attach(MIMEText(body,"plain")); srv.sendmail(gmail_user,lead["email"],msg.as_string())
                 db2=get_db(); c2=db2.cursor()
-                c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
-                db2.commit(); c2.close(); db2.close()
+                c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],)); db2.commit(); c2.close(); db2.close()
                 sent+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"sent"})
-            else:
-                failed+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"failed","error":result["error"]})
-            time.sleep(1)
-        except Exception as e: failed+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"failed"})
+                time.sleep(1)
+            except Exception as e: failed+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"failed"})
+        srv.quit()
+    except Exception as e: return {"success":False,"message":f"SMTP error: {str(e)}","sent":sent,"failed":failed}
     return {"success":True,"message":f"Done: {sent} sent, {failed} failed","sent":sent,"failed":failed,"results":results}
 
 
@@ -1975,6 +1972,7 @@ async def bulk_send_emails(campaign_id: int, request: BulkEmailRequest, session_
     if not eligible: return {"success":False,"message":"No eligible leads — all in cooldown or missing emails.","sent":0,"skipped":0}
     sent=0; failed=0; results=[]
     try:
+        srv=smtplib.SMTP_SSL("smtp.gmail.com",465); srv.login(gmail_user,gmail_pass)
         for lead in eligible:
             try:
                 prompt=f"""Write a short professional B2B cold email for a US/UK recruitment firm.
@@ -1983,7 +1981,7 @@ Industry: {lead.get("industry","")} | Hiring: {lead.get("target_role","")}
 {("Recruiter context: "+request.scenario) if request.scenario else ""}
 Rules: Max 75 words. Mention company. Focus on pre-vetted candidates. Soft CTA 15-min call.
 Return ONLY:\nSubject: [subject]\nBody: [body]"""
-                ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
+                ai_r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
                 raw=ai_r.choices[0].message.content.strip()
                 subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Opportunity — {lead['company']}"
                 body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -1994,7 +1992,8 @@ Return ONLY:\nSubject: [subject]\nBody: [body]"""
                 sent+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"sent"})
                 time.sleep(1)
             except Exception as e: failed+=1; results.append({"name":lead.get("full_name",""),"email":lead["email"],"status":"failed"})
-    except Exception as e: pass
+        srv.quit()
+    except Exception as e: return {"success":False,"message":f"SMTP error: {str(e)}","sent":sent,"failed":failed}
     return {"success":True,"message":f"Done: {sent} sent, {failed} failed","sent":sent,"failed":failed,"results":results}
 
 @app.get("/followup-queue")
@@ -2030,6 +2029,7 @@ async def bulk_followup_send(request: BulkEmailRequest, session_token: str = Coo
     if not gmail_user: raise HTTPException(400,"Gmail not configured")
     sent=0; failed=0
     try:
+        srv=smtplib.SMTP_SSL("smtp.gmail.com",465); srv.login(gmail_user,gmail_pass)
         for lead in leads_to_send:
             try:
                 label="Day 3 follow-up" if request.email_type=="followup1" else "Day 7 final follow-up"
@@ -2037,7 +2037,7 @@ async def bulk_followup_send(request: BulkEmailRequest, session_token: str = Coo
 Lead: {lead["first_name"]} at {lead["company"]}
 Rules: Max 50 words. Reference previous email. Soft CTA only.
 Return ONLY: Subject: [subject]\nBody: [body]"""
-                ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
+                ai_r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
                 raw=ai_r.choices[0].message.content.strip()
                 subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else "Following up"
                 body_text=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2047,6 +2047,7 @@ Return ONLY: Subject: [subject]\nBody: [body]"""
                 c2.execute("UPDATE leads SET emailed_at=NOW() WHERE id=%s",(lead["id"],)); db2.commit(); c2.close(); db2.close()
                 sent+=1; time.sleep(1)
             except: failed+=1
+        srv.quit()
     except Exception as e: return {"success":False,"message":str(e),"sent":sent}
     return {"success":True,"sent":sent,"failed":failed,"message":f"{sent} follow-ups sent"}
 
@@ -2094,13 +2095,20 @@ async def send_with_attachment(
     lead=cursor.fetchone(); cursor.close(); db.close()
     if not lead: raise HTTPException(404,"Lead not found")
     if not lead.get("email"): raise HTTPException(400,"Lead has no email")
+    gmail_user,gmail_pass=get_user_gmail(session_token)
+    if not gmail_user: raise HTTPException(400,"Gmail not configured")
     try:
-        result=send_via_resend(lead["email"],subject,body)
-        if result["success"]:
-            db2=get_db(); c2=db2.cursor()
-            c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,)); db2.commit(); c2.close(); db2.close()
-            return {"success":True,"to":lead["email"],"attachment":attachment.filename if attachment else None}
-        else: raise HTTPException(500,result["error"])
+        msg=MIMEMultipart(); msg["Subject"]=subject; msg["From"]=gmail_user; msg["To"]=lead["email"]
+        msg.attach(MIMEText(body,"plain"))
+        if attachment:
+            file_content=await attachment.read()
+            part=MIMEBase("application","octet-stream"); part.set_payload(file_content)
+            encoders.encode_base64(part); part.add_header("Content-Disposition",f"attachment; filename={attachment.filename}")
+            msg.attach(part)
+        with smtplib.SMTP_SSL("smtp.gmail.com",465) as srv: srv.login(gmail_user,gmail_pass); srv.sendmail(gmail_user,lead["email"],msg.as_string())
+        db2=get_db(); c2=db2.cursor()
+        c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,)); db2.commit(); c2.close(); db2.close()
+        return {"success":True,"to":lead["email"],"attachment":attachment.filename if attachment else None}
     except Exception as e: raise HTTPException(500,str(e))
 
 # ── TRACKING PIXEL & CLICK TRACKING ─────────────────────────
@@ -2195,7 +2203,7 @@ async def preview_bulk_email(campaign_id: int, request: BulkEmailRequest):
     fn=lead["first_name"]; company=lead["company"]; title=lead["title"]
     prompt=(f"You are an expert cold email writer.\nLead: {fn}, {title} at {company}\nUser intent: {sc}\nWrite appropriate cold email. Max 75 words.\nReturn ONLY:\nSubject: [subject]\nBody: [body]" if sc else f"Write professional B2B cold email.\nLead: {fn}, {title} at {company}\nMax 75 words. Soft CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]")
     try:
-        r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
+        r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
         raw=r.choices[0].message.content.strip()
         subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {company}"
         body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2358,14 +2366,14 @@ def _send_ab_bg(group_a,group_b,scenario):
     gmail_pass=(row["gmail_app_password"] if row else None) or os.getenv("GMAIL_APP_PASSWORD","")
     if not gmail_user: return
     try:
-        # Using Resend API instead of SMTP
+        srv=smtplib.SMTP("smtp.gmail.com",587); srv.starttls(); srv.login(gmail_user,gmail_pass)
         for variant,leads in [("A",group_a),("B",group_b)]:
             for lead in leads:
                 try:
                     sc=scenario or ""
                     variant_note="Direct professional opener" if variant=="A" else "Start with a compelling question"
                     prompt=f"Write short cold email.\nLead: {lead['first_name']}, {lead['title']} at {lead['company']}\n{'Intent: '+sc if sc else 'B2B outreach'}\nVariant {variant}: {variant_note}\nMax 75 words. CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
-                    r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
+                    r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
                     raw=r.choices[0].message.content.strip()
                     subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                     body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2376,6 +2384,7 @@ def _send_ab_bg(group_a,group_b,scenario):
                     c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
                     db2.commit(); c2.close(); db2.close(); time.sleep(1)
                 except Exception as e: print(f"AB err: {e}")
+        srv.quit()
     except Exception as e: print(f"AB SMTP: {e}")
 
 # ── BLACKLIST CHECKER ─────────────────────────────────────────
@@ -2448,7 +2457,7 @@ async def invite_user(request: dict):
     if c.fetchone(): c.close(); db.close(); return {"success":False,"message":"User already exists"}
     hashed = hash_password(password)
     c2=db.cursor()
-    c2.execute("INSERT INTO users (username,password,role,created_at) VALUES (%s,%s,%s,NOW())",(email,hashed,role))
+    c2.execute("INSERT INTO users (username,email,password_hash,role) VALUES (%s,%s,%s,%s)",(email,email,hashed,role))
     db.commit(); c2.close(); c.close(); db.close()
     return {"success":True,"message":f"Account created for {email}","email":email,"role":role}
 
@@ -2725,14 +2734,14 @@ def _send_tz_bg(leads, scenario):
             if delay > 0: time.sleep(min(delay, 3600))  # Max 1hr wait
         except: pass
         try:
-            # Using Resend API instead of SMTP
+            srv=smtplib.SMTP("smtp.gmail.com",587); srv.starttls(); srv.login(gmail_user,gmail_pass)
             for lead in tz_leads:
                 try:
                     sc=scenario or ""
                     prompt=(f"You are an expert cold email writer.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nUser intent: {sc}\nMax 75 words. One CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
                             if sc else
                             f"Write professional B2B cold email.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nMax 75 words.\nReturn ONLY:\nSubject: [subject]\nBody: [body]")
-                    r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
+                    r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
                     raw=r.choices[0].message.content.strip()
                     subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                     body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2745,6 +2754,7 @@ def _send_tz_bg(leads, scenario):
                     db2.commit(); c2.close(); db2.close()
                     time.sleep(1)
                 except Exception as e: print(f"TZ send error: {e}")
+            srv.quit()
         except Exception as e: print(f"TZ SMTP error: {e}")
 
 # ═══════════════════════════════════════════════════════════════
