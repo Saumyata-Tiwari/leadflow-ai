@@ -254,7 +254,7 @@ async def get_me(session_token: str = Cookie(default=None)):
     if not user: raise HTTPException(401, "Not logged in")
     return {"username": user["username"], "email": user["email"]}
 
-client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.getenv("OPENROUTER_API_KEY"))
+client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.getenv("GROQ_API_KEY"))
 
 CONFIDENCE = {"apollo_verified":92,"apollo_unverified":70,"prospeo_linkedin":88,"prospeo_name":85,"snov":78,"generated":50,"manual":60,"unknown":0}
 SEND_THRESHOLD = 70
