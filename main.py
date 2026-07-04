@@ -27,7 +27,13 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 
 load_dotenv()
-
+def get_db():
+    return mysql.connector.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        user=os.getenv("DB_USER", "root"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", "leadflow_ai")
+    )
 def send_via_resend(to_email: str, subject: str, body: str, from_name: str = "LeadFlow AI") -> dict:
     api_key = os.getenv("RESEND_API_KEY", "")
     if not api_key:
