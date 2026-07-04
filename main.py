@@ -254,7 +254,7 @@ async def get_me(session_token: str = Cookie(default=None)):
     if not user: raise HTTPException(401, "Not logged in")
     return {"username": user["username"], "email": user["email"]}
 
-client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.getenv("GROQ_API_KEY"))
+client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=os.getenv("GROQ_API_KEY"))
 
 CONFIDENCE = {"apollo_verified":92,"apollo_unverified":70,"prospeo_linkedin":88,"prospeo_name":85,"snov":78,"generated":50,"manual":60,"unknown":0}
 SEND_THRESHOLD = 70
@@ -375,7 +375,7 @@ Examples:
 - "Software Engineer" → ["CTO","VP of Engineering","Director of Engineering","Engineering Manager","HR Manager","Technical Recruiting Manager","Director of Recruitment"]
 Return ONLY a JSON array. No explanation."""
     try:
-        response = client.chat.completions.create(model="openrouter/auto", messages=[{"role":"user","content":prompt}])
+        response = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"user","content":prompt}])
         content = response.choices[0].message.content.strip()
         if "```" in content:
             content = content.split("```")[1]
@@ -403,7 +403,7 @@ Return ONLY a JSON array. No explanation."""
 
 def get_ai_salary(target_role: str):
     try:
-        r = client.chat.completions.create(model="openrouter/auto", messages=[{"role":"user","content":f'Minimum annual salary USD for "{target_role}" at a US company. Return ONLY a number like 85000.'}])
+        r = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"user","content":f'Minimum annual salary USD for "{target_role}" at a US company. Return ONLY a number like 85000.'}])
         return int(''.join(filter(str.isdigit, r.choices[0].message.content.strip()))) or 80000
     except: return 80000
 
@@ -1314,7 +1314,7 @@ async def bulk_send_by_role(campaign_id: int, request: BulkEmailRequest, backgro
                 else:
                     prompt = f"Write a short professional cold email to a {lead['title']}.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nIndustry: {lead.get('industry','')} | Company hiring: {lead.get('target_role','')}\nRole-relevant email. Max 75 words. Clear CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
                 ai_r = client.chat.completions.create(
-                    model="openrouter/auto",
+                    model="llama-3.3-70b-versatile",
                     messages=[{"role":"user","content":prompt}]
                 )
                 raw = ai_r.choices[0].message.content.strip()
@@ -1656,7 +1656,7 @@ async def generate_email(request: EmailRequest):
             )
 
     if not prompt: raise HTTPException(400,"Invalid email type")
-    response=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
+    response=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
     raw=response.choices[0].message.content.strip()
     subject=""; body=""
     if "Subject:" in raw:
@@ -1940,7 +1940,7 @@ async def bulk_send_emails(campaign_id: int, request: BulkEmailRequest, session_
                         "Rules: Max 75 words. Mention company. Focus on pre-vetted candidates. Soft CTA 15-min call.\n"
                         "Return ONLY:\nSubject: [subject]\nBody: [body]"
                     )
-                ai_r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
+                ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
                 raw=ai_r.choices[0].message.content.strip()
                 subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Opportunity — {lead['company']}"
                 body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -1981,7 +1981,7 @@ Industry: {lead.get("industry","")} | Hiring: {lead.get("target_role","")}
 {("Recruiter context: "+request.scenario) if request.scenario else ""}
 Rules: Max 75 words. Mention company. Focus on pre-vetted candidates. Soft CTA 15-min call.
 Return ONLY:\nSubject: [subject]\nBody: [body]"""
-                ai_r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
+                ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
                 raw=ai_r.choices[0].message.content.strip()
                 subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Opportunity — {lead['company']}"
                 body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2037,7 +2037,7 @@ async def bulk_followup_send(request: BulkEmailRequest, session_token: str = Coo
 Lead: {lead["first_name"]} at {lead["company"]}
 Rules: Max 50 words. Reference previous email. Soft CTA only.
 Return ONLY: Subject: [subject]\nBody: [body]"""
-                ai_r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
+                ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
                 raw=ai_r.choices[0].message.content.strip()
                 subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else "Following up"
                 body_text=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2203,7 +2203,7 @@ async def preview_bulk_email(campaign_id: int, request: BulkEmailRequest):
     fn=lead["first_name"]; company=lead["company"]; title=lead["title"]
     prompt=(f"You are an expert cold email writer.\nLead: {fn}, {title} at {company}\nUser intent: {sc}\nWrite appropriate cold email. Max 75 words.\nReturn ONLY:\nSubject: [subject]\nBody: [body]" if sc else f"Write professional B2B cold email.\nLead: {fn}, {title} at {company}\nMax 75 words. Soft CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]")
     try:
-        r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
+        r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
         raw=r.choices[0].message.content.strip()
         subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {company}"
         body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2373,7 +2373,7 @@ def _send_ab_bg(group_a,group_b,scenario):
                     sc=scenario or ""
                     variant_note="Direct professional opener" if variant=="A" else "Start with a compelling question"
                     prompt=f"Write short cold email.\nLead: {lead['first_name']}, {lead['title']} at {lead['company']}\n{'Intent: '+sc if sc else 'B2B outreach'}\nVariant {variant}: {variant_note}\nMax 75 words. CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
-                    r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
+                    r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
                     raw=r.choices[0].message.content.strip()
                     subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                     body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
@@ -2741,7 +2741,7 @@ def _send_tz_bg(leads, scenario):
                     prompt=(f"You are an expert cold email writer.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nUser intent: {sc}\nMax 75 words. One CTA.\nReturn ONLY:\nSubject: [subject]\nBody: [body]"
                             if sc else
                             f"Write professional B2B cold email.\nLead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\nMax 75 words.\nReturn ONLY:\nSubject: [subject]\nBody: [body]")
-                    r=client.chat.completions.create(model="openrouter/auto",messages=[{"role":"user","content":prompt}])
+                    r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
                     raw=r.choices[0].message.content.strip()
                     subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                     body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
