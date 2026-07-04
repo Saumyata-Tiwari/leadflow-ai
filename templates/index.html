@@ -333,23 +333,6 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
     <div class="fm"><label>Max Company Size</label><input type="number" id="cn-max" value="10000"></div>
     <div class="fm"><label>Minimum Salary (USD/year)</label><input type="number" id="cn-sal" value="80000"><div class="sal-sug" id="sal-suggest" style="display:none">&#9670; <span id="sal-text"></span></div></div>
     <div class="fm"><label>Exclude Company Types</label><input type="text" id="cn-excl" value="Staffing,Recruiting,Talent,Consultancy,IT Consultancy,Human Resources Services,Technology Information and Media,University,Non-profit,NGO"></div>
-    <div class="fm"><label>Industry Focus <span style="font-weight:400;color:var(--t3)">(optional — e.g. "staffing", "software", "healthcare")</span></label>
-      <select id="cn-ind-focus">
-        <option value="">Any industry</option>
-        <option value="staffing">Staffing & Recruiting</option>
-        <option value="software">Software / SaaS</option>
-        <option value="healthcare">Healthcare</option>
-        <option value="finance">Finance & Banking</option>
-        <option value="manufacturing">Manufacturing</option>
-        <option value="retail">Retail & E-commerce</option>
-        <option value="education">Education</option>
-        <option value="real estate">Real Estate</option>
-        <option value="marketing">Marketing & Advertising</option>
-        <option value="logistics">Logistics & Supply Chain</option>
-        <option value="consulting">Consulting</option>
-        <option value="legal">Legal</option>
-      </select>
-    </div>
     <div class="fm full" style="flex-direction:row;gap:24px;flex-wrap:wrap;align-items:center">
       <label class="crow"><input type="checkbox" id="cn-int" checked> Exclude Internships</label>
       <label class="crow"><input type="checkbox" id="cn-rem" checked> Exclude Remote-only</label>
@@ -399,7 +382,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
     </div>
   </div>
   <div class="card">
-    <div class="ch"><div class="ct">Saved Companies</div><div style="display:flex;align-items:center;gap:8px"><div style="font-size:11.5px;color:var(--t3)">Click name to manage contacts</div><button id="comp-enrich-btn" class="btn bw xs" style="display:none" onclick="enrichAllCompanies(currentCampaignId)">✦ Enrich Details</button></div></div>
+    <div class="ch"><div class="ct">Saved Companies</div><div style="font-size:11.5px;color:var(--t3)">Click name to manage contacts</div></div>
     <div class="tw"><table>
       <thead><tr><th>Company</th><th>Industry</th><th>Location</th><th>Salary</th><th>Posted</th><th>Contacts</th><th>Responded</th><th>Actions</th></tr></thead>
       <tbody id="comp-tb"></tbody>
@@ -556,7 +539,6 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
       <select id="fl-c" onchange="loadAllLeads()" style="width:200px"><option value="">All Campaigns</option></select>
       <select id="fl-s" onchange="loadAllLeads()" style="width:150px"><option value="">All Status</option><option value="new">New</option><option value="emailed">Emailed</option><option value="responded">Responded</option><option value="soft_rejection">Soft Rejection</option><option value="rejected">Rejected</option></select>
-      <input type="text" id="fl-search" placeholder="🔍 Search name, company, email..." oninput="loadAllLeads()" style="flex:1;min-width:200px">
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
       <label class="crow" style="font-size:12px;font-weight:600;color:var(--t2)"><input type="checkbox" id="sel-all-leads" onchange="toggleAllLeads(this.checked)" style="width:14px;height:14px;accent-color:var(--accent)"> Select All</label>
@@ -661,7 +643,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       </div>
       <div class="fm">
         <label>Your LeadFlow URL (for unsubscribe links)</label>
-        <input type="text" id="set-baseurl" placeholder="http://localhost:8000" value="http://localhost:8000">
+        <input type="text" id="set-baseurl2" oninput="const m=document.getElementById('set-baseurl');if(m)m.value=this.value;" placeholder="http://localhost:8000" value="http://localhost:8000">
         <div style="font-size:11px;color:var(--t3);margin-top:4px">Change to your Railway URL when deployed</div>
       </div>
       <div class="fm">
@@ -691,7 +673,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       </div>
       <div class="fm">
         <label>Calendly / Meeting Link</label>
-        <input type="text" id="set-calendly2" placeholder="https://calendly.com/yourname/15min" oninput="const m=document.getElementById('set-calendly');if(m)m.value=this.value;">
+        <input type="text" id="set-calendly2" oninput="const m=document.getElementById('set-calendly');if(m)m.value=this.value;" placeholder="https://calendly.com/yourname/15min">
         <div style="font-size:11px;color:var(--t3);margin-top:3px">Auto-appended to every email CTA</div>
       </div>
     </div>
@@ -719,17 +701,6 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
         <div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">✓ Works With</div>
         <div style="font-size:12px;color:var(--t2);line-height:1.9">Gmail personal accounts<br>Google Workspace (company email)<br>Send to any domain — Yahoo, Outlook, custom<br>One account per user</div>
       </div>
-    </div>
-  </div>
-
-  <!-- TEAM MEMBERS CARD -->
-  <div class="card" id="team-card">
-    <div class="ch" style="margin-bottom:14px">
-      <div class="ct">Team Members</div>
-      <button class="btn bw xs" onclick="loadTeam()">↺ Refresh</button>
-    </div>
-    <div id="team-list">
-      <div class="ld">Loading team...</div>
     </div>
   </div>
 </div>
@@ -845,15 +816,6 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <tbody id="log-tb"></tbody>
     </table></div>
   </div>
-
-  <!-- SCHEDULED EMAILS CARD -->
-  <div class="card" style="margin-top:20px">
-    <div class="ch" style="margin-bottom:14px">
-      <div class="ct">🕐 Scheduled Emails</div>
-      <button class="btn bw xs" onclick="loadScheduledEmails()">↺ Refresh</button>
-    </div>
-    <div id="scheduled-list"><div class="ld">Loading...</div></div>
-  </div>
 </div>
 
 </div><!-- end .main -->
@@ -904,13 +866,10 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <button class="btn bo sm" onclick="checkSpamScore()" title="Check spam score before sending">&#9889; Spam Check</button>
       <div id="spam-score-display" style="font-size:11px;display:none;padding:3px 8px;border-radius:5px"></div>
       <button class="btn bp sm" id="send-email-btn" onclick="sendEmailNow()" style="background:#2E8B57;box-shadow:0 2px 12px rgba(46,139,87,0.3)">&#9889; Send Email</button>
-      <button class="btn bo sm" onclick="openScheduleEmail()" title="Schedule email for later">🕐 Schedule</button>
-      <button class="btn bo sm" onclick="openVideoEmbed()" title="Embed Loom or video link">🎥 Video</button>
       <label class="btn bo sm" style="cursor:pointer;gap:4px" title="Attach file">&#128206;
         <input type="file" id="email-attachment" style="display:none" accept=".pdf,.doc,.docx,.txt,.png,.jpg" onchange="showAttachment(this)">
       </label>
       <span id="attachment-name" style="font-size:11px;color:var(--t3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-      <span id="attachment-del" style="display:none;cursor:pointer;color:var(--red);font-size:13px;font-weight:700" onclick="clearAttachment()" title="Remove attachment">✕</span>
       <div style="width:1px;height:20px;background:var(--dv)"></div>
       <button class="btn bs sm" onclick="updSt('responded')">✓ Responded</button>
       <button class="btn bw sm" onclick="updSt('soft_rejection')">Soft Rejection</button>
@@ -938,23 +897,6 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <div class="fm"><label>Max Company Size</label><input type="number" id="ef-max"></div>
       <div class="fm"><label>Min Salary (USD)</label><input type="number" id="ef-sal"><div class="sal-sug" id="ef-sal-sug" style="display:none">&#9670; <span id="ef-sal-text"></span></div></div>
       <div class="fm"><label>Exclude Types</label><input type="text" id="ef-excl"></div>
-      <div class="fm"><label>Industry Focus</label>
-        <select id="ef-ind-focus">
-          <option value="">Any industry</option>
-          <option value="staffing">Staffing & Recruiting</option>
-          <option value="software">Software / SaaS</option>
-          <option value="healthcare">Healthcare</option>
-          <option value="finance">Finance & Banking</option>
-          <option value="manufacturing">Manufacturing</option>
-          <option value="retail">Retail & E-commerce</option>
-          <option value="education">Education</option>
-          <option value="real estate">Real Estate</option>
-          <option value="marketing">Marketing & Advertising</option>
-          <option value="logistics">Logistics & Supply Chain</option>
-          <option value="consulting">Consulting</option>
-          <option value="legal">Legal</option>
-        </select>
-      </div>
       <div class="fm full" style="flex-direction:row;gap:20px;flex-wrap:wrap;align-items:center">
         <label class="crow"><input type="checkbox" id="ef-int"> Exclude Internships</label>
         <label class="crow"><input type="checkbox" id="ef-rem"> Exclude Remote</label>
@@ -1012,9 +954,9 @@ function sp(p,el){
   if(p==='leads'){loadAllLeads();popCampFl();}
   if(p==='email-flow'){loadEmailFlowLeads();popSeqCampaigns();loadSeqLeadCount();}
   if(p==='followup'){loadFollowupQueue();popCampFq();}
-  if(p==='settings'){loadEmailSettings();loadDeliverabilitySettings();loadEmailSettingsExtended();loadTeam();}
+  if(p==='settings'){loadEmailSettings();loadDeliverabilitySettings();loadEmailSettingsExtended();}
   if(p==='templates'){loadTemplates();}
-  if(p==='email-log'){popLogCamps();loadEmailLog();loadScheduledEmails();}
+  if(p==='email-log'){popLogCamps();loadEmailLog();}
   if(p==='inbox'){popInboxCamps();loadInbox();}
   if(p==='import'){popImportCamps();}
 }
@@ -1059,7 +1001,7 @@ async function createCampaign(){
   if(!name||!role){ntf('Campaign name and target role are required','error');return;}
   isCreatingCampaign=true;const btn=document.getElementById('create-camp-btn');btn.textContent='Creating...';btn.disabled=true;
   try{
-    const res=await fetch('/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,target_role:role,target_location:document.getElementById('cn-loc').value,company_size_min:parseInt(document.getElementById('cn-min').value)||50,company_size_max:parseInt(document.getElementById('cn-max').value)||10000,min_salary:parseInt(document.getElementById('cn-sal').value)||80000,excluded_industries:document.getElementById('cn-excl').value.trim(),exclude_intern:document.getElementById('cn-int').checked,exclude_remote:document.getElementById('cn-rem').checked,exclude_apprentice:document.getElementById('cn-app').checked,job_date_filter:document.getElementById('cn-date').value,notes:document.getElementById('cn-not').value.trim(),industry_focus:document.getElementById('cn-ind-focus').value})}).then(r=>r.json());
+    const res=await fetch('/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,target_role:role,target_location:document.getElementById('cn-loc').value,company_size_min:parseInt(document.getElementById('cn-min').value)||50,company_size_max:parseInt(document.getElementById('cn-max').value)||10000,min_salary:parseInt(document.getElementById('cn-sal').value)||80000,excluded_industries:document.getElementById('cn-excl').value.trim(),exclude_intern:document.getElementById('cn-int').checked,exclude_remote:document.getElementById('cn-rem').checked,exclude_apprentice:document.getElementById('cn-app').checked,job_date_filter:document.getElementById('cn-date').value,notes:document.getElementById('cn-not').value.trim()})}).then(r=>r.json());
     ntf('Campaign created!');['cn-name','cn-role','cn-not'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('sal-suggest').style.display='none';
     openCampaign(res.id,name,role);
@@ -1115,7 +1057,7 @@ async function searchCompanies(cid){
     searchResults=d.jobs||[];document.getElementById('search-title').textContent=`Found ${searchResults.length} companies`;
     if(!searchResults.length){res.innerHTML='<div class="empty"><div class="em">&#8857;</div><p>No results found.</p></div>';return;}
     renderResults();document.getElementById('load-more-section').style.display='block';document.getElementById('page-info').textContent=`Page 1 - ${searchResults.length} companies`;
-  }catch(e){res.innerHTML=`<div class="empty"><div class="em">!</div><p>Search failed: ${e.message||'Check VS Code terminal for details'}</p></div>`;}
+  }catch(e){res.innerHTML='<div class="empty"><div class="em">!</div><p>Search failed.</p></div>';}
 }
 
 async function loadMoreResults(){
@@ -1135,7 +1077,7 @@ function renderResults(){
       <input type="checkbox" class="jchk" ${selCompanies.has(i)?'checked':''} onclick="event.stopPropagation();toggleSel(${i})">
       <div class="jlogo">${j.employer_logo?`<img src="${j.employer_logo}" onerror="this.parentNode.textContent='${(j.employer_name||'?')[0].toUpperCase()}'">`:j.employer_name?.[0]?.toUpperCase()||'?'}</div>
       <div style="flex:1"><div class="jname">${j.employer_name}</div><div class="jtitle">${j.job_title}</div>
-      <div class="jmeta"><span class="jm">&#128205; ${j.location||'US'}</span>${j.industry?`<span class="jm" style="color:var(--accent)">&#127981; ${j.industry}</span>`:''}<span class="jm">&#128176; ${j.salary_display}</span><span class="jm">&#8987; ${j.job_posted}</span></div></div>
+      <div class="jmeta"><span class="jm">&#128205; ${j.location||'US'}</span><span class="jm">&#128176; ${j.salary_display}</span><span class="jm">&#8987; ${j.job_posted}</span></div></div>
     </div>`).join('');
   updateSelCount();
 }
@@ -1147,7 +1089,7 @@ function updateSelCount(){document.getElementById('sel-count').textContent=selCo
 
 async function addSelectedCompanies(){
   if(!selCompanies.size){ntf('Select at least one company','error');return;}
-  const companies=Array.from(selCompanies).map(i=>{const j=searchResults[i];return{campaign_id:currentCampaignId,name:j.employer_name,industry:j.industry||j.company_type||'',location:j.location||'',size_range:'',website:j.employer_website||j.domain||'',job_title:j.job_title||'',salary_range:j.salary_display||'',job_posted:j.job_posted||'',source:j.source||'apollo_org',notes:''};});
+  const companies=Array.from(selCompanies).map(i=>{const j=searchResults[i];return{campaign_id:currentCampaignId,name:j.employer_name,industry:j.company_type||'',location:j.location||'',size_range:'',website:j.employer_website||j.domain||'',job_title:j.job_title||'',salary_range:j.salary_display||'',job_posted:j.job_posted||'',source:j.source||'apollo_org',notes:''};});
   try{const r=await fetch('/companies/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:currentCampaignId,companies})}).then(r=>r.json());ntf(`✓ ${r.added} companies added`);selCompanies=new Set();searchResults=[];document.getElementById('search-section').style.display='none';loadCompanies(currentCampaignId);}
   catch(e){ntf('Error','error');}
 }
@@ -1157,9 +1099,6 @@ async function loadCompanies(cid){
     const cs=await fetch('/companies?campaign_id='+cid).then(r=>r.json());
     const tb=document.getElementById('comp-tb');
     if(!cs.length){tb.innerHTML=em(8,'[+]','No companies yet.');return;}
-    const missingDetails=cs.filter(c=>!c.industry||c.salary_range==='Not disclosed'||!c.salary_range);
-    const enrichBtn=document.getElementById('comp-enrich-btn');
-    if(enrichBtn) enrichBtn.style.display=missingDetails.length?'inline-flex':'none';
     tb.innerHTML=cs.map(c=>`<tr>
       <td><b style="cursor:pointer;color:var(--accent)" onclick="openComp(${c.id},'${esc(c.name)}',${currentCampaignId},'${esc(c.website||'')}')">${c.name}</b></td>
       <td style="font-size:11.5px">${c.industry||'—'}</td><td style="font-size:11.5px">${c.location||'—'}</td>
@@ -1172,22 +1111,6 @@ async function loadCompanies(cid){
       </td>
     </tr>`).join('');
   }catch(e){}
-}
-
-async function enrichAllCompanies(cid){
-  const btn=document.getElementById('comp-enrich-btn');
-  if(btn){btn.textContent='Enriching...';btn.disabled=true;}
-  try{
-    const cs=await fetch('/companies?campaign_id='+cid).then(r=>r.json());
-    const missing=cs.filter(c=>!c.industry||!c.salary_range||c.salary_range==='Not disclosed');
-    let done=0;
-    for(const c of missing){
-      try{await fetch('/companies/'+c.id+'/enrich',{method:'PATCH'});done++;}catch(e){}
-    }
-    ntf(`✓ Enriched ${done} companies`);
-    loadCompanies(cid);
-  }catch(e){ntf('Enrichment error','error');}
-  if(btn){btn.textContent='✦ Enrich Details';btn.disabled=false;}
 }
 
 async function openComp(id,name,campId,website=''){
@@ -1323,14 +1246,6 @@ async function openEmail(id){
   else{vs.innerHTML=`<div class="vbox info"><div class="vt">No Email</div><div style="font-size:12px;color:var(--t2)">Add via contact edit</div></div>`;}
   const att=document.getElementById('email-attachment');if(att)att.value='';
   const attName=document.getElementById('attachment-name');if(attName)attName.textContent='';
-  const attDel=document.getElementById('attachment-del');if(attDel)attDel.style.display='none';
-  // Restore saved context
-  const ctxEl=document.getElementById('email-scenario');
-  if(ctxEl){
-    const saved=localStorage.getItem('lf-email-ctx')||'';
-    ctxEl.value=saved;
-    ctxEl.oninput=function(){localStorage.setItem('lf-email-ctx',this.value);this.style.height='auto';this.style.height=this.scrollHeight+'px';};
-  }
   document.getElementById('mo-email').classList.add('show');
   document.getElementById('em-content').innerHTML='<div class="ld">Generating...</div>';
   document.querySelectorAll('.etab').forEach(t=>t.classList.remove('on'));document.querySelectorAll('.etab')[0].classList.add('on');
@@ -1342,7 +1257,7 @@ async function verInModal(){const btn=event.target;btn.textContent='Verifying...
 async function genEm(type,btn){
   document.querySelectorAll('.etab').forEach(t=>t.classList.remove('on'));btn.classList.add('on');
   document.getElementById('em-content').innerHTML='<div class="ld">Writing email...</div>';
-  const sb=document.getElementById('send-email-btn');if(sb){sb.innerHTML='⚡ Send Email';sb.disabled=false;sb.style.background='#2E8B57';sb.style.color='#fff';}
+  const sb=document.getElementById('send-email-btn');if(sb){sb.textContent='&#9889; Send Email';sb.disabled=false;sb.style.background='#2E8B57';sb.style.color='#fff';}
   try{
     const scenario=document.getElementById('email-scenario')?.value?.trim()||'';
     const d=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:curLead,email_type:type,scenario:scenario||null})}).then(r=>r.json());
@@ -1353,39 +1268,16 @@ async function genEm(type,btn){
 
 function copyEmail(){const subject=document.getElementById('em-subject')?.value||'',body=document.getElementById('em-body')?.value||'';const full=`Subject: ${subject}\n\n${body}`;navigator.clipboard.writeText(full).then(()=>ntf('✓ Copied')).catch(()=>{const ta=document.createElement('textarea');ta.value=full;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();ntf('✓ Copied');});}
 
-async function updSt(status){
-  if(!curLead)return;
-  const name=curLeadData?.full_name||'Lead';
-  await fetch('/leads/'+curLead+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
-  const m={responded:'✓ Responded',soft_rejection:'Soft Rejection noted',rejected:'Rejected'};
-  ntf(m[status]||'Updated');
-  loadDash();
-  cmo('mo-email');
-  if(curComp)loadContacts(curComp);
-  if(status==='responded'){
-    setTimeout(()=>launchFoxHunt(name),300);
-  }
-}
+async function updSt(status){if(!curLead)return;await fetch('/leads/'+curLead+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});const m={responded:'✓ Responded',soft_rejection:'Soft Rejection noted',rejected:'Rejected'};ntf(m[status]||'Updated');loadDash();cmo('mo-email');if(curComp)loadContacts(curComp);if(status==='responded'){const name=curLeadData?.full_name||'Lead';setTimeout(()=>launchFoxHunt(name),200);}}
 
 async function loadEmailFlowLeads(){try{const leads=await fetch('/leads').then(r=>r.json());const sel=document.getElementById('ef-lead-sel');sel.innerHTML='<option value="">Choose a lead</option>'+leads.slice(0,20).map(l=>`<option value="${l.id}">${l.full_name} @ ${l.company}</option>`).join('');}catch(e){}}
 async function genEmailFromFlow(){const id=document.getElementById('ef-lead-sel').value;if(!id){ntf('Select a lead','error');return;}const preview=document.getElementById('ef-preview');preview.innerHTML='<div class="ld">Generating...</div>';try{const d=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:parseInt(id),email_type:'cold'})}).then(r=>r.json());preview.innerHTML=`<div class="ep"><div class="esb">Subject: ${d.subject}</div><div style="font-size:13px;line-height:1.8;color:var(--t2);white-space:pre-wrap">${d.body}</div></div><div style="margin-top:10px"><button class="btn bo sm" onclick="openEmail(${id})">Open Full Generator</button></div>`;}catch(e){preview.innerHTML='<div style="color:var(--red);font-size:12px">Error</div>';}}
 
 async function loadAllLeads(){
   const cid=document.getElementById('fl-c')?.value,status=document.getElementById('fl-s')?.value;
-  const q=(document.getElementById('fl-search')?.value||'').toLowerCase().trim();
   let url='/leads';if(cid)url+='?campaign_id='+cid;
-  try{let leads=await fetch(url).then(r=>r.json());
-    if(status)leads=leads.filter(l=>l.status===status);
-    if(q)leads=leads.filter(l=>
-      (l.full_name||'').toLowerCase().includes(q)||
-      (l.company||'').toLowerCase().includes(q)||
-      (l.email||'').toLowerCase().includes(q)||
-      (l.title||'').toLowerCase().includes(q)
-    );
-    const tb=document.getElementById('leads-tb');if(!leads.length){tb.innerHTML=em(9,'&#8857;','No leads match filters.');return;}selectedLeads=new Set();updateBulkUI();
-    tb.innerHTML=leads.map(l=>`<tr><td><input type="checkbox" class="lead-chk" data-id="${l.id}" onchange="toggleLeadSel(${l.id},this.checked)" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer"></td><td><b>${l.full_name||'—'}</b></td><td style="font-size:11px;color:var(--t3)">${l.title||'—'}</td><td>${l.company||'—'}</td><td style="font-size:11.5px">${l.email||'<span style="color:var(--t3)">—</span>'}</td><td>${l.email_verified?'<span class="bdg bv">✓</span>':'<span class="bdg buv">—</span>'}</td><td>${l.campaign_name?`<span class="cp">${l.campaign_name}</span>`:'<span style="color:var(--t3)">—</span>'}</td><td>${bdg(l.status)}</td><td style="display:flex;gap:5px"><button class="btn bp xs" onclick="openEmail(${l.id})">Email</button><button class="btn bo xs" onclick="openLinkedIn('${l.linkedin_url||''}','${(l.full_name||'').replace(/'/g,"\\'")}','${(l.company||'').replace(/'/g,"\\'")}')">in</button><button class="btn bd xs" onclick="delLead(${l.id})">&#10005;</button></td></tr>`).join('');
-  }catch(e){}
-}
+  try{let leads=await fetch(url).then(r=>r.json());if(status)leads=leads.filter(l=>l.status===status);const tb=document.getElementById('leads-tb');if(!leads.length){tb.innerHTML=em(9,'&#8857;','No leads match filters.');return;}selectedLeads=new Set();updateBulkUI();
+    tb.innerHTML=leads.map(l=>`<tr><td><input type="checkbox" class="lead-chk" data-id="${l.id}" onchange="toggleLeadSel(${l.id},this.checked)" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer"></td><td><b>${l.full_name||'—'}</b></td><td style="font-size:11px;color:var(--t3)">${l.title||'—'}</td><td>${l.company||'—'}</td><td style="font-size:11.5px">${l.email||'<span style="color:var(--t3)">—</span>'}</td><td>${l.email_verified?'<span class="bdg bv">✓</span>':'<span class="bdg buv">—</span>'}</td><td>${l.campaign_name?`<span class="cp">${l.campaign_name}</span>`:'<span style="color:var(--t3)">—</span>'}</td><td>${bdg(l.status)}</td><td style="display:flex;gap:5px"><button class="btn bp xs" onclick="openEmail(${l.id})">Email</button><button class="btn bo xs" onclick="openLinkedIn('${l.linkedin_url||''}','${(l.full_name||'').replace(/'/g,"\\'")}','${(l.company||'').replace(/'/g,"\\'")}')">in</button><button class="btn bd xs" onclick="delLead(${l.id})">&#10005;</button></td></tr>`).join('');}catch(e){}}
 
 async function popCampFl(){try{const cs=await fetch('/campaigns').then(r=>r.json());const s=document.getElementById('fl-c');if(!s)return;s.innerHTML='<option value="">All Campaigns</option>'+cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');}catch(e){}}
 async function popCampFq(){try{const cs=await fetch('/campaigns').then(r=>r.json());const s=document.getElementById('fq-camp');if(!s)return;s.innerHTML='<option value="">All Campaigns</option>'+cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');}catch(e){}}
@@ -1395,8 +1287,8 @@ async function checkH(){const role=document.getElementById('hr-r').value.trim();
 let efSalTimer=null;
 function debounceEFsal(){clearTimeout(efSalTimer);efSalTimer=setTimeout(async()=>{const role=document.getElementById('ef-role').value.trim();if(!role||role.length<3)return;try{const d=await fetch(`/salary-suggestion?role=${encodeURIComponent(role)}`).then(r=>r.json());document.getElementById('ef-sal').value=d.suggested_salary;document.getElementById('ef-sal-text').textContent=d.message;document.getElementById('ef-sal-sug').style.display='flex';}catch(e){}},1200);}
 
-async function openEditFilters(){try{const c=await fetch('/campaigns/'+currentCampaignId).then(r=>r.json());document.getElementById('ef-name').value=c.name||'';document.getElementById('ef-role').value=c.target_role||'';document.getElementById('ef-sal').value=c.min_salary||80000;document.getElementById('ef-min').value=c.company_size_min||50;document.getElementById('ef-max').value=c.company_size_max||10000;document.getElementById('ef-excl').value=c.excluded_industries||'';document.getElementById('ef-ind-focus').value=c.industry_focus||'';document.getElementById('ef-int').checked=!!c.exclude_intern;document.getElementById('ef-rem').checked=!!c.exclude_remote;document.getElementById('ef-app').checked=!!c.exclude_apprentice;document.getElementById('ef-sal-sug').style.display='none';document.getElementById('mo-filters').classList.add('show');}catch(e){ntf('Error','error');}}
-function getFilterData(){return{name:document.getElementById('ef-name').value.trim(),target_role:document.getElementById('ef-role').value.trim(),target_location:document.getElementById('ef-loc').value,company_size_min:parseInt(document.getElementById('ef-min').value)||50,company_size_max:parseInt(document.getElementById('ef-max').value)||10000,min_salary:parseInt(document.getElementById('ef-sal').value)||80000,excluded_industries:document.getElementById('ef-excl').value.trim(),exclude_intern:document.getElementById('ef-int').checked,exclude_remote:document.getElementById('ef-rem').checked,exclude_apprentice:document.getElementById('ef-app').checked,job_date_filter:document.getElementById('ef-date').value,notes:'',industry_focus:document.getElementById('ef-ind-focus').value};}
+async function openEditFilters(){try{const c=await fetch('/campaigns/'+currentCampaignId).then(r=>r.json());document.getElementById('ef-name').value=c.name||'';document.getElementById('ef-role').value=c.target_role||'';document.getElementById('ef-sal').value=c.min_salary||80000;document.getElementById('ef-min').value=c.company_size_min||50;document.getElementById('ef-max').value=c.company_size_max||10000;document.getElementById('ef-excl').value=c.excluded_industries||'';document.getElementById('ef-int').checked=!!c.exclude_intern;document.getElementById('ef-rem').checked=!!c.exclude_remote;document.getElementById('ef-app').checked=!!c.exclude_apprentice;document.getElementById('ef-sal-sug').style.display='none';document.getElementById('mo-filters').classList.add('show');}catch(e){ntf('Error','error');}}
+function getFilterData(){return{name:document.getElementById('ef-name').value.trim(),target_role:document.getElementById('ef-role').value.trim(),target_location:document.getElementById('ef-loc').value,company_size_min:parseInt(document.getElementById('ef-min').value)||50,company_size_max:parseInt(document.getElementById('ef-max').value)||10000,min_salary:parseInt(document.getElementById('ef-sal').value)||80000,excluded_industries:document.getElementById('ef-excl').value.trim(),exclude_intern:document.getElementById('ef-int').checked,exclude_remote:document.getElementById('ef-rem').checked,exclude_apprentice:document.getElementById('ef-app').checked,job_date_filter:document.getElementById('ef-date').value,notes:''};}
 async function saveFiltersOnly(){const data=getFilterData();if(!data.name||!data.target_role){ntf('Required','error');return;}await fetch('/campaigns/'+currentCampaignId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});ntf('Saved');cmo('mo-filters');}
 async function saveFiltersAndSearch(){const data=getFilterData();if(!data.name||!data.target_role){ntf('Required','error');return;}await fetch('/campaigns/'+currentCampaignId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});ntf('Saved — searching...');cmo('mo-filters');searchCompanies(currentCampaignId);}
 
@@ -1405,19 +1297,7 @@ function dlCSV(cid=null){let url='/leads/export/csv';if(cid)url+='?campaign_id='
 let selectedLeads=new Set();
 function toggleLeadSel(id,checked){if(checked)selectedLeads.add(id);else selectedLeads.delete(id);updateBulkUI();}
 function toggleAllLeads(checked){document.querySelectorAll('.lead-chk').forEach(cb=>{cb.checked=checked;const id=parseInt(cb.dataset.id);if(checked)selectedLeads.add(id);else selectedLeads.delete(id);});updateBulkUI();}
-function updateBulkUI(){
-  const count=selectedLeads.size;
-  const countEl=document.getElementById('sel-leads-count');
-  const bulkBtn=document.getElementById('bulk-del-btn');
-  const statusSel=document.getElementById('bulk-status-sel');
-  const statusBtn=document.getElementById('bulk-status-btn');
-  if(countEl)countEl.textContent=count>0?count+' selected':'0 selected';
-  if(bulkBtn)bulkBtn.style.display=count>0?'inline-flex':'none';
-  if(statusSel)statusSel.style.display=count>0?'inline-block':'none';
-  if(statusBtn)statusBtn.style.display=count>0?'inline-flex':'none';
-  const sa=document.getElementById('sel-all-leads');
-  if(sa){const total=document.querySelectorAll('.lead-chk').length;sa.checked=total>0&&count===total;sa.indeterminate=count>0&&count<total;}
-}
+function updateBulkUI(){const count=selectedLeads.size;const countEl=document.getElementById('sel-leads-count');const bulkBtn=document.getElementById('bulk-del-btn');if(countEl)countEl.textContent=count>0?count+' selected':'0 selected';if(bulkBtn)bulkBtn.style.display=count>0?'inline-flex':'none';const sa=document.getElementById('sel-all-leads');if(sa){const total=document.querySelectorAll('.lead-chk').length;sa.checked=total>0&&count===total;sa.indeterminate=count>0&&count<total;}}
 async function bulkDeleteLeads(){if(!selectedLeads.size)return;if(!confirm(`Delete ${selectedLeads.size} selected leads?`))return;ntf('Deleting...','warning');let deleted=0;for(const id of Array.from(selectedLeads)){try{await fetch('/leads/'+id,{method:'DELETE'});deleted++;}catch(e){}}selectedLeads=new Set();ntf(`✓ ${deleted} leads deleted`);loadAllLeads();loadDash();}
 async function deleteAllLeads(){const leads=await fetch('/leads').then(r=>r.json());if(!leads.length){ntf('No leads','error');return;}if(!confirm(`Delete ALL ${leads.length} leads?`))return;ntf('Deleting all...','warning');let deleted=0;for(const l of leads){try{await fetch('/leads/'+l.id,{method:'DELETE'});deleted++;}catch(e){}}ntf(`✓ All ${deleted} deleted`);loadAllLeads();loadDash();}
 
@@ -1433,27 +1313,7 @@ function selectSearchResult(id,name,campId,website){document.getElementById('glo
 
 async function showCampSelector(compId,compName,website){const camps=await fetch('/campaigns').then(r=>r.json());const ex=document.getElementById('mo-camp-sel');if(ex)ex.remove();const mo=document.createElement('div');mo.id='mo-camp-sel';mo.className='mo show';const rows=camps.length===0?'<div style="text-align:center;padding:20px;color:var(--t3)">No campaigns yet.</div>':camps.map(c=>`<div onclick="addCompToCamp(${compId||0},'${(compName||'').replace(/'/g,"\'")}','${(website||'').replace(/'/g,"\'")}',${c.id},'${(c.name||'').replace(/'/g,"\'")}')" style="padding:12px 14px;background:var(--ib);border:1px solid var(--ic);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--rust-soft)'" onmouseout="this.style.borderColor='var(--ic)';this.style.background='var(--ib)'"><div style="font-size:13px;font-weight:600;color:var(--tx)">${c.name}</div><div style="font-size:11px;color:var(--t3);margin-top:3px">${c.target_role||'—'} · ${c.target_location||'—'}</div></div>`).join('');mo.innerHTML=`<div class="modal" style="width:480px"><div class="mh"><div class="mt">Add "${compName}" to Campaign</div><button class="mcl" onclick="document.getElementById('mo-camp-sel').remove()">&#215;</button></div><div style="font-size:12px;color:var(--t2);margin-bottom:14px">Select which campaign to add this company to.</div>${rows}<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--dv)"><button class="btn bo sm" onclick="document.getElementById('mo-camp-sel').remove()">Cancel</button></div></div>`;document.body.appendChild(mo);}
 
-async function addCompToCamp(compId,compName,website,campId,campName){
-  const mo=document.getElementById('mo-camp-sel');if(mo)mo.remove();
-  if(compId&&compId!==0){currentCampaignId=campId;openComp(parseInt(compId),compName,campId,website||'');return;}
-  try{
-    ntf('Adding...','warning');
-    // Enrich from Clearbit before saving
-    let industry='',location='United States',domain=website||'';
-    try{
-      const cl=await fetch('/search-companies?q='+encodeURIComponent(compName)).then(r=>r.json());
-      const match=cl.find(c=>c.name.toLowerCase()===compName.toLowerCase());
-      if(match){industry=match.industry||'';domain=match.website||match.domain||domain;}
-    }catch(e){}
-    const r=await fetch('/companies',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({campaign_id:campId,name:compName,industry:industry,
-        location:location,size_range:'',website:domain,job_title:'',
-        salary_range:'',job_posted:'',source:'manual',notes:''})}).then(r=>r.json());
-    ntf('✓ '+compName+' added');
-    currentCampaignId=campId;
-    openComp(r.id,compName,campId,domain||'');
-  }catch(e){ntf('Error','error');}
-}
+async function addCompToCamp(compId,compName,website,campId,campName){const mo=document.getElementById('mo-camp-sel');if(mo)mo.remove();if(compId&&compId!==0){currentCampaignId=campId;openComp(parseInt(compId),compName,campId,website||'');return;}try{ntf('Adding...','warning');const r=await fetch('/companies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:campId,name:compName,industry:'',location:'',size_range:'',website:website||'',job_title:'',salary_range:'',job_posted:'',source:'manual',notes:''})}).then(r=>r.json());ntf('✓ '+compName+' added');currentCampaignId=campId;openComp(r.id,compName,campId,website||'');}catch(e){ntf('Error','error');}}
 
 async function openEditContact(id){try{const l=await fetch('/leads/'+id).then(r=>r.json());document.getElementById('ec-id').value=id;document.getElementById('ec-fn').value=l.first_name||'';document.getElementById('ec-ln').value=l.last_name||'';document.getElementById('ec-tt').value=l.title||'';document.getElementById('ec-em').value=l.email||'';document.getElementById('ec-li').value=l.linkedin_url||'';document.getElementById('ec-lo').value=l.location||'';document.getElementById('ec-nt').value=l.notes||'';document.getElementById('mo-edit-contact').classList.add('show');}catch(e){ntf('Error','error');}}
 async function saveEditContact(){const id=document.getElementById('ec-id').value;if(!id)return;const body={first_name:document.getElementById('ec-fn').value.trim(),last_name:document.getElementById('ec-ln').value.trim(),title:document.getElementById('ec-tt').value.trim(),email:document.getElementById('ec-em').value.trim(),linkedin_url:document.getElementById('ec-li').value.trim(),location:document.getElementById('ec-lo').value.trim(),notes:document.getElementById('ec-nt').value.trim()};try{await fetch('/leads/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});ntf('✓ Updated');cmo('mo-edit-contact');loadContacts(curComp);loadDash();}catch(e){ntf('Error','error');}}
@@ -1461,34 +1321,7 @@ async function saveEditContact(){const id=document.getElementById('ec-id').value
 const foxTags=['on the hunt','finding leads','sniffing trails','ready to pounce'];let foxTagIdx=0;
 setInterval(()=>{foxTagIdx=(foxTagIdx+1)%foxTags.length;const el=document.getElementById('fox-tag');if(el){el.style.opacity='0';setTimeout(()=>{el.textContent=foxTags[foxTagIdx];el.style.opacity='1';},300);}},4000);
 function foxBark(){const el=document.getElementById('fox-tag');if(el){el.textContent='on it!';setTimeout(()=>{el.textContent=foxTags[foxTagIdx];},1500);}}
-function launchFoxHunt(leadName){
-  const existing=document.getElementById('fox-hunt-popup');if(existing)existing.remove();
-  const popup=document.createElement('div');popup.id='fox-hunt-popup';
-  popup.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:100000;background:var(--bg2);border:2px solid var(--accent);border-radius:20px;padding:32px 40px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.6);animation:foxPopIn .4s cubic-bezier(0.34,1.56,0.64,1) forwards;min-width:280px;';
-  popup.innerHTML=`
-    <div style="font-size:56px;margin-bottom:8px;animation:foxBob 0.8s ease-in-out infinite">🦊</div>
-    <div style="font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);margin-bottom:6px">Lead Caught!</div>
-    <div style="font-size:13px;color:var(--t2);font-weight:600;letter-spacing:.04em">${leadName||'They responded!'}</div>
-    <div style="font-size:11px;color:var(--t3);margin-top:8px">Flo is on fire 🔥</div>
-  `;
-  // Add keyframe if not already added
-  if(!document.getElementById('fox-pop-style')){
-    const s=document.createElement('style');s.id='fox-pop-style';
-    s.textContent='@keyframes foxPopIn{0%{transform:translate(-50%,-50%) scale(0);opacity:0;}60%{transform:translate(-50%,-50%) scale(1.08);}100%{transform:translate(-50%,-50%) scale(1);opacity:1;}}@keyframes foxPopOut{0%{transform:translate(-50%,-50%) scale(1);opacity:1;}100%{transform:translate(-50%,-50%) scale(0.8);opacity:0;}}';
-    document.head.appendChild(s);
-  }
-  document.body.appendChild(popup);
-  // Click to dismiss
-  popup.onclick=()=>popup.remove();
-  // Auto dismiss after 2.5s
-  setTimeout(()=>{
-    popup.style.animation='foxPopOut .3s ease forwards';
-    setTimeout(()=>popup.remove(),300);
-  },2500);
-  // Update Flo tagline
-  const tag=document.getElementById('fox-tag');
-  if(tag){tag.textContent='got one! 🎉';setTimeout(()=>{tag.textContent='on the hunt';},3000);}
-}
+function launchFoxHunt(leadName){const fox=document.createElement('div');fox.className='fox-hunter';fox.innerHTML=`<svg viewBox="0 0 160 80" width="160" height="80"><path d="M30 44 Q10 36 14 52 Q16 64 30 58 Q38 54 36 44Z" fill="#D4895A"/><path d="M36 34 Q36 60 80 60 Q124 60 124 34 Q116 24 80 22 Q44 24 36 34Z" fill="#D4895A"/><ellipse cx="80" cy="50" rx="26" ry="12" fill="#F2E0C8"/><ellipse cx="114" cy="27" rx="4" ry="3.5" fill="#2C1A0E"/><g class="fox-leg-fl"><rect x="104" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g><g class="fox-leg-bl"><rect x="52" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g><g class="fox-leg-fr"><rect x="90" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g><g class="fox-leg-br"><rect x="64" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g></svg>`;document.body.appendChild(fox);setTimeout(()=>{const badge=document.createElement('div');badge.className='fox-catch';badge.innerHTML=`<div class="fox-catch-title">Lead Caught!</div><div class="fox-catch-sub">${leadName||'They responded!'}</div>`;document.body.appendChild(badge);setTimeout(()=>badge.remove(),1400);},900);setTimeout(()=>fox.remove(),2400);const tag=document.getElementById('fox-tag');if(tag){tag.textContent='got one!';setTimeout(()=>{tag.textContent='on the hunt';},3000);}}
 
 function doLogout(){fetch('/auth/logout',{method:'POST'}).then(()=>window.location.href='/login');}
 function loadCurrentUser(){fetch('/auth/me').then(r=>r.json()).then(u=>{const el=document.getElementById('sidebar-user');if(el&&u.username)el.textContent='Signed in as '+u.username;}).catch(()=>{});}
@@ -1708,23 +1541,11 @@ async function scanReplies(){
 // ── FILE ATTACHMENT ──────────────────────────────────────────────
 function showAttachment(input){
   const nameEl=document.getElementById('attachment-name');
-  const delEl=document.getElementById('attachment-del');
   if(input.files&&input.files[0]){
     const fname=input.files[0].name;
     if(nameEl)nameEl.textContent=fname.length>20?fname.substring(0,17)+'...':fname;
-    if(delEl)delEl.style.display='inline';
     ntf('📎 Attached: '+fname,'warning');
   }
-}
-
-function clearAttachment(){
-  const att=document.getElementById('email-attachment');
-  const nameEl=document.getElementById('attachment-name');
-  const delEl=document.getElementById('attachment-del');
-  if(att)att.value='';
-  if(nameEl)nameEl.textContent='';
-  if(delEl)delEl.style.display='none';
-  ntf('Attachment removed');
 }
 
 // ── OVERRIDE sendEmailNow to support attachments ─────────────────
@@ -2033,6 +1854,7 @@ async function loadDeliverabilitySettings(){
     const we=document.getElementById('warmup-enabled');if(we)we.checked=!!w.warmup_enabled;
     const sc=document.getElementById('set-calendly');if(sc)sc.value=c.calendly_url||'';
     const sc2=document.getElementById('set-calendly2');if(sc2)sc2.value=c.calendly_url||'';
+    const bu2=document.getElementById('set-baseurl2');if(bu2)bu2.value=document.getElementById('set-baseurl')?.value||'';
     const sw=document.getElementById('set-webhook');if(sw)sw.value=wh.webhook_url||'';
   }catch(e){}
 }
@@ -2150,107 +1972,10 @@ async function loadDashCharts(){
 // ═══════════════════════════════════════════════════════════
 // FEATURE 18 — MULTI-USER / INVITE TEAM MEMBER
 // ═══════════════════════════════════════════════════════════
-function openScheduleEmail(){
-  if(!curLead){ntf('No lead selected','error');return;}
-  const subEl=document.getElementById('em-subject');
-  const bodyEl=document.getElementById('em-body');
-  if(!subEl?.value||!bodyEl?.value){ntf('Generate an email first','error');return;}
-  const existing=document.getElementById('mo-schedule');if(existing)existing.remove();
-  const now=new Date();now.setHours(now.getHours()+1);now.setMinutes(0);
-  const pad=n=>String(n).padStart(2,'0');
-  const defaultDt=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:00`;
-  const mo=document.createElement('div');mo.id='mo-schedule';mo.className='mo show';
-  mo.innerHTML=`<div class="modal" style="width:420px;max-width:95vw">
-    <div class="mh"><div class="mt">🕐 Schedule Email</div><button class="mcl" onclick="document.getElementById('mo-schedule').remove()">&#215;</button></div>
-    <div style="font-size:12px;color:var(--t2);margin-bottom:16px;padding:10px;background:var(--ib);border-radius:8px">
-      Email will be sent at your chosen time. Make sure your server is running.
-    </div>
-    <div class="fm" style="margin-bottom:14px">
-      <label>Send Date & Time</label>
-      <input type="datetime-local" id="sch-datetime" value="${defaultDt}" style="width:100%">
-    </div>
-    <div class="fm" style="margin-bottom:16px">
-      <label>Timezone</label>
-      <select id="sch-tz" style="width:100%">
-        <option value="America/New_York">Eastern Time (ET)</option>
-        <option value="America/Chicago">Central Time (CT)</option>
-        <option value="America/Denver">Mountain Time (MT)</option>
-        <option value="America/Los_Angeles">Pacific Time (PT)</option>
-        <option value="UTC">UTC</option>
-        <option value="Asia/Kolkata">India (IST)</option>
-      </select>
-    </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn bp" style="flex:1" onclick="confirmScheduleEmail()">🕐 Schedule Send →</button>
-      <button class="btn bo" onclick="document.getElementById('mo-schedule').remove()">Cancel</button>
-    </div>
-  </div>`;
-  mo.onclick=e=>{if(e.target===mo)mo.remove();};
-  document.body.appendChild(mo);
-}
-
-async function confirmScheduleEmail(){
-  const dt=document.getElementById('sch-datetime')?.value;
-  const tz=document.getElementById('sch-tz')?.value||'America/New_York';
-  const subEl=document.getElementById('em-subject');
-  const bodyEl=document.getElementById('em-body');
-  if(!dt){ntf('Pick a date and time','error');return;}
-  try{
-    const r=await fetch('/schedule-email',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lead_id:curLead,subject:subEl.value,body:bodyEl.value,
-        send_at:dt,timezone:tz})}).then(r=>r.json());
-    if(r.success||r.message){
-      document.getElementById('mo-schedule')?.remove();
-      ntf('✓ Email scheduled for '+new Date(dt).toLocaleString());
-      cmo('mo-email');
-    }else ntf(r.detail||'Schedule failed','error');
-  }catch(e){ntf('Schedule failed','error');}
-}
-
-function openVideoEmbed(){
-  if(!curLead){ntf('Open a lead email first','error');return;}
-  const existing=document.getElementById('mo-video');if(existing)existing.remove();
-  const mo=document.createElement('div');mo.id='mo-video';mo.className='mo show';
-  mo.innerHTML=`<div class="modal" style="width:460px;max-width:95vw">
-    <div class="mh"><div class="mt">🎥 Embed Video / Loom</div><button class="mcl" onclick="document.getElementById('mo-video').remove()">&#215;</button></div>
-    <div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px;background:var(--ib);border-radius:8px">
-      Paste a Loom, YouTube, or any video URL. A clickable thumbnail link will be added to the email body.
-    </div>
-    <div class="fm" style="margin-bottom:12px">
-      <label>Video URL</label>
-      <input type="url" id="vid-url" placeholder="https://www.loom.com/share/... or https://youtu.be/..." style="width:100%">
-    </div>
-    <div class="fm" style="margin-bottom:14px">
-      <label>Caption (optional)</label>
-      <input type="text" id="vid-caption" placeholder="Watch our 2-min product demo →" style="width:100%" value="Watch our 2-min product demo →">
-    </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn bp" style="flex:1" onclick="insertVideoEmbed()">Insert into Email →</button>
-      <button class="btn bo" onclick="document.getElementById('mo-video').remove()">Cancel</button>
-    </div>
-  </div>`;
-  mo.onclick=e=>{if(e.target===mo)mo.remove();};
-  document.body.appendChild(mo);
-  setTimeout(()=>document.getElementById('vid-url')?.focus(),100);
-}
-
-function insertVideoEmbed(){
-  const url=document.getElementById('vid-url')?.value?.trim();
-  const caption=document.getElementById('vid-caption')?.value?.trim()||'Watch video →';
-  if(!url){ntf('Enter a video URL','error');return;}
-  const bodyEl=document.getElementById('em-body');
-  if(!bodyEl){ntf('Generate an email first','error');return;}
-  // Build video embed text
-  const embedText=`\n\n🎥 ${caption}\n${url}\n`;
-  bodyEl.value=bodyEl.value+embedText;
-  document.getElementById('mo-video')?.remove();
-  ntf('✓ Video link added to email');
-}
-
 function openInviteUser(){
   const ex=document.getElementById('mo-invite');if(ex)ex.remove();
   const mo=document.createElement('div');mo.id='mo-invite';mo.className='mo show';
-  mo.innerHTML=`<div class="modal" style="width:480px;max-width:95vw">
+  mo.innerHTML=`<div class="modal" style="width:480px">
     <div class="mh"><div class="mt">+ Invite Team Member</div><button class="mcl" onclick="document.getElementById('mo-invite').remove()">&#215;</button></div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px 12px;background:var(--ib);border-radius:8px;border:1px solid var(--ic);line-height:1.7">
       Each team member gets their own login, their own Gmail, and their own campaigns. Admins see everything. Members see their own campaigns only.
@@ -2271,9 +1996,7 @@ function openInviteUser(){
       <button class="btn bo" onclick="document.getElementById('mo-invite').remove()">Cancel</button>
     </div>
   </div>`;
-  mo.onclick=function(e){if(e.target===mo)mo.remove();}
   document.body.appendChild(mo);
-  setTimeout(()=>document.getElementById('inv-email')?.focus(),100);
 }
 
 async function sendInvite(){
@@ -2288,64 +2011,10 @@ async function sendInvite(){
     if(r.success){
       res.innerHTML=`<div style="padding:10px;background:var(--green-soft);border:1px solid rgba(5,150,105,0.3);border-radius:7px;font-size:12.5px;color:#34D399">✓ Account created for ${email}. Share these credentials:<br><b>Email:</b> ${email} &nbsp;|&nbsp; <b>Password:</b> ${pass}</div>`;
       ntf('✓ Team member added: '+email);
-      loadTeam();
     }else{
       res.innerHTML=`<div style="color:#F87171;font-size:12px">${r.message||'Failed'}</div>`;
     }
   }catch(e){res.innerHTML='<div style="color:#F87171;font-size:12px">Error creating account</div>';}
-}
-
-async function removeTeamMember(id, username){
-  if(!confirm(`Remove ${username} from the team? They will lose access immediately.`))return;
-  try{
-    const r=await fetch(`/auth/team/${id}`,{method:'DELETE'}).then(r=>r.json());
-    if(r.success){ntf(`✓ Removed ${username}`);loadTeam();}
-    else ntf(r.message||'Could not remove member','error');
-  }catch(e){ntf('Error removing member','error');}
-}
-
-async function changeTeamRole(id, username, newRole){
-  const label=newRole==='admin'?'Admin':'Member';
-  if(!confirm(`Change ${username} to ${label}?`))return;
-  try{
-    const r=await fetch(`/auth/team/${id}/role`,{method:'PATCH',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({role:newRole})}).then(r=>r.json());
-    if(r.success){ntf(`✓ ${username} is now ${label}`);loadTeam();}
-    else ntf(r.message||'Could not update role','error');
-  }catch(e){ntf('Error updating role','error');}
-}
-
-async function loadTeam(){
-  const el=document.getElementById('team-list');
-  if(!el)return;
-  el.innerHTML='<div class="ld">Loading...</div>';
-  try{
-    const r=await fetch('/auth/team').then(r=>r.json());
-    const users=r.users||[];
-    if(!users.length){
-      el.innerHTML='<div class="empty"><div class="em">👥</div><p>No team members yet.<br>Invite your first teammate above.</p></div>';
-      return;
-    }
-    const roleBadge=role=>role==='admin'
-      ?'<span class="bdg" style="background:rgba(212,137,90,0.12);color:var(--accent);border:1px solid rgba(212,137,90,0.25)">⚡ Admin</span>'
-      :'<span class="bdg" style="background:rgba(96,165,250,0.1);color:#60A5FA;border:1px solid rgba(96,165,250,0.2)">◎ Member</span>';
-    el.innerHTML=`<div class="tw"><table>
-      <thead><tr><th>Username / Email</th><th>Role</th><th>Joined</th><th>Access</th><th></th></tr></thead>
-      <tbody>${users.map(u=>`<tr>
-        <td><b>${u.username}</b></td>
-        <td>${roleBadge(u.role)}</td>
-        <td style="color:var(--t3);font-size:12px">${u.created_at?new Date(u.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—'}</td>
-        <td><span style="font-size:11px;color:var(--t3)">${u.role==='admin'?'Full access':'Own campaigns'}</span></td>
-        <td style="display:flex;gap:6px;align-items:center">
-          <button class="btn xs ${u.role==='admin'?'bo':'bw'}" onclick="changeTeamRole(${u.id},'${u.username.replace(/'/g,"\\'")}','${u.role==='admin'?'member':'admin'}')" title="${u.role==='admin'?'Demote to Member':'Promote to Admin'}">${u.role==='admin'?'↓ Make Member':'↑ Make Admin'}</button>
-          <button class="btn bd xs" onclick="removeTeamMember(${u.id},'${u.username.replace(/'/g,"\\'")}')">✕ Remove</button>
-        </td>
-      </tr>`).join('')}</tbody>
-    </table></div>
-    <div style="margin-top:10px;font-size:11px;color:var(--t3)">${users.length} member${users.length!==1?'s':''} total</div>`;
-  }catch(e){
-    el.innerHTML='<div style="color:#F87171;font-size:12px;padding:10px">Could not load team members.</div>';
-  }
 }
 
 
@@ -2402,153 +2071,20 @@ async function loadTemplateById(id){
     const r=await fetch('/email-templates').then(r=>r.json());
     const t=(r.templates||[]).find(x=>x.id===id);
     if(!t){ntf('Template not found','error');return;}
-
-    // If email modal already open with a lead — load directly
     const subEl=document.getElementById('em-subject');
     const bodyEl=document.getElementById('em-body');
-    const modal=document.getElementById('mo-email');
-    if(subEl&&bodyEl&&curLead&&modal&&modal.classList.contains('show')){
+    if(subEl&&bodyEl){
       subEl.value=t.subject||'';
       bodyEl.value=t.body||'';
       fetch('/email-templates/'+id+'/use',{method:'PUT'});
       ntf('✓ Template loaded');
-      return;
+      const modal=document.getElementById('mo-email');
+      if(modal&&!modal.classList.contains('show'))modal.classList.add('show');
+    }else{
+      navigator.clipboard.writeText((t.subject?'Subject: '+t.subject+'\n\n':'')+t.body).then(()=>ntf('✓ Copied to clipboard'));
+      fetch('/email-templates/'+id+'/use',{method:'PUT'});
     }
-
-    // Show picker modal with two tabs
-    const existing=document.getElementById('mo-tpl-pick');
-    if(existing)existing.remove();
-
-    const [leads,camps]=await Promise.all([
-      fetch('/leads').then(r=>r.json()),
-      fetch('/campaigns').then(r=>r.json())
-    ]);
-
-    const mo=document.createElement('div');
-    mo.id='mo-tpl-pick';mo.className='mo show';
-    mo.innerHTML=`<div class="modal" style="width:520px;max-width:95vw">
-      <div class="mh"><div class="mt">📋 Use Template: ${t.name}</div><button class="mcl" onclick="document.getElementById('mo-tpl-pick').remove()">&#215;</button></div>
-
-      <div class="tabs" style="margin-bottom:14px">
-        <div class="tab on" id="tpl-tab-single" onclick="switchTplTab('single')" style="cursor:pointer;user-select:none">👤 Single Lead</div>
-        <div class="tab" id="tpl-tab-bulk" onclick="switchTplTab('bulk')" style="cursor:pointer;user-select:none">⚡ Bulk Send</div>
-      </div>
-
-      <!-- Single Lead Tab -->
-      <div id="tpl-panel-single">
-        <input type="text" id="tpl-lead-search" placeholder="🔍 Search name, company, email..." oninput="filterTplLeads()" style="width:100%;margin-bottom:10px">
-        <div id="tpl-lead-list" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
-          ${leads.map(l=>`<div class="tpl-lead-row"
-            data-name="${(l.full_name||'').toLowerCase()}"
-            data-company="${(l.company||'').toLowerCase()}"
-            data-email="${(l.email||'').toLowerCase()}"
-            style="padding:10px 12px;background:var(--ib);border:1px solid var(--ic);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center"
-            onclick="applyTemplateToLead(${id},'${(t.subject||'').replace(/'/g,"\\'")}',${JSON.stringify(t.body||'').replace(/\//g,'\\/')},${l.id},'${(l.full_name||'').replace(/'/g,"\\'")}')">
-            <div>
-              <div style="font-size:13px;font-weight:600">${l.full_name||'—'}</div>
-              <div style="font-size:11px;color:var(--t3)">${l.title||''} ${l.company?'@ '+l.company:''}</div>
-            </div>
-            <div style="font-size:11px;color:var(--t3)">${l.email||'no email'}</div>
-          </div>`).join('')}
-        </div>
-      </div>
-
-      <!-- Bulk Send Tab -->
-      <div id="tpl-panel-bulk" style="display:none">
-        <div style="font-size:12px;color:var(--t2);margin-bottom:12px;padding:10px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)">
-          This will send the template to all <b>New</b> leads in the selected campaign. AI personalization is applied to each email.
-        </div>
-        <div class="fm" style="margin-bottom:12px">
-          <label>Select Campaign</label>
-          <select id="tpl-bulk-camp" style="width:100%">
-            <option value="">— Choose a campaign —</option>
-            ${(Array.isArray(camps)?camps:camps.campaigns||[]).map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}
-          </select>
-        </div>
-        <div class="fm" style="margin-bottom:14px">
-          <label>Context / Pitch (optional)</label>
-          <textarea id="tpl-bulk-context" placeholder="e.g. We are LeadFlow AI — pitching to staffing firms..." style="width:100%;height:70px;resize:none;background:var(--ib);border:1px solid var(--ic);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:12px;font-family:'Outfit',sans-serif"></textarea>
-        </div>
-        <div id="tpl-bulk-preview" style="font-size:12px;color:var(--t3);margin-bottom:12px"></div>
-        <button class="btn bp" style="width:100%" onclick="bulkSendTemplate(${id},'${(t.subject||'').replace(/'/g,"\\'")}',${JSON.stringify(t.body||'').replace(/\//g,'\\/')})">⚡ Send to All Eligible Leads →</button>
-      </div>
-    </div>`;
-    mo.onclick=e=>{if(e.target===mo)mo.remove();};
-    document.body.appendChild(mo);
-
-    // Load lead count on campaign select
-    document.getElementById('tpl-bulk-camp')?.addEventListener('change',async function(){
-      const cid=this.value;
-      if(!cid){document.getElementById('tpl-bulk-preview').textContent='';return;}
-      const campLeads=await fetch('/leads?campaign_id='+cid).then(r=>r.json());
-      const eligible=campLeads.filter(l=>l.status==='new'&&l.email);
-      document.getElementById('tpl-bulk-preview').innerHTML=
-        `<span style="color:var(--accent);font-weight:600">${eligible.length} leads</span> eligible (status: New, has email)`;
-    });
-
-    document.getElementById('tpl-lead-search')?.focus();
   }catch(e){ntf('Error loading template','error');}
-}
-
-function switchTplTab(tab){
-  document.getElementById('tpl-tab-single').classList.toggle('on',tab==='single');
-  document.getElementById('tpl-tab-bulk').classList.toggle('on',tab==='bulk');
-  document.getElementById('tpl-panel-single').style.display=tab==='single'?'block':'none';
-  document.getElementById('tpl-panel-bulk').style.display=tab==='bulk'?'block':'none';
-}
-
-function filterTplLeads(){
-  const q=(document.getElementById('tpl-lead-search')?.value||'').toLowerCase();
-  document.querySelectorAll('.tpl-lead-row').forEach(row=>{
-    const match=row.dataset.name.includes(q)||row.dataset.company.includes(q)||row.dataset.email.includes(q);
-    row.style.display=match?'flex':'none';
-  });
-}
-
-async function applyTemplateToLead(templateId,subject,body,leadId,leadName){
-  document.getElementById('mo-tpl-pick')?.remove();
-  await openEmail(leadId);
-  setTimeout(()=>{
-    const subEl=document.getElementById('em-subject');
-    const bodyEl=document.getElementById('em-body');
-    if(subEl)subEl.value=subject;
-    if(bodyEl)bodyEl.value=body;
-    fetch('/email-templates/'+templateId+'/use',{method:'PUT'});
-    ntf('✓ Template loaded for '+leadName);
-  },600);
-}
-
-async function bulkSendTemplate(templateId,subject,body){
-  const campId=document.getElementById('tpl-bulk-camp')?.value;
-  const context=document.getElementById('tpl-bulk-context')?.value||'';
-  if(!campId){ntf('Select a campaign first','error');return;}
-  const btn=document.querySelector('#tpl-panel-bulk .btn.bp');
-  if(btn){btn.textContent='Sending...';btn.disabled=true;}
-  try{
-    const campLeads=await fetch('/leads?campaign_id='+campId).then(r=>r.json());
-    const eligible=campLeads.filter(l=>l.status==='new'&&l.email);
-    if(!eligible.length){ntf('No eligible leads in this campaign','error');if(btn){btn.textContent='⚡ Send to All Eligible Leads →';btn.disabled=false;}return;}
-    let sent=0,failed=0;
-    for(const lead of eligible){
-      try{
-        // Generate personalized email using template as base
-        const genRes=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({lead_id:lead.id,email_type:'cold',context:context||subject})}).then(r=>r.json());
-        const emailSubject=genRes.subject||subject;
-        const emailBody=genRes.body||body;
-        // Send
-        const sendRes=await fetch('/leads/'+lead.id+'/send-email',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({subject:emailSubject,body:emailBody})}).then(r=>r.json());
-        if(sendRes.success)sent++;else failed++;
-      }catch(e){failed++;}
-      // Small delay to avoid Gmail rate limits
-      await new Promise(res=>setTimeout(res,1500));
-    }
-    document.getElementById('mo-tpl-pick')?.remove();
-    ntf(`✓ Sent ${sent} emails${failed?', '+failed+' failed':''}`,sent>0?'success':'error');
-    fetch('/email-templates/'+templateId+'/use',{method:'PUT'});
-  }catch(e){ntf('Bulk send error','error');}
-  if(btn){btn.textContent='⚡ Send to All Eligible Leads →';btn.disabled=false;}
 }
 
 async function deleteTemplate(id){
@@ -2589,76 +2125,6 @@ function saveCurrentAsTemplate(){
 }
 
 // ═══════════════════════════════════════════════════════════
-// SCHEDULED EMAILS
-// ═══════════════════════════════════════════════════════════
-async function loadScheduledEmails(){
-  const el=document.getElementById('scheduled-list');
-  if(!el)return;
-  el.innerHTML='<div class="ld">Loading...</div>';
-  try{
-    const r=await fetch('/scheduled-emails').then(r=>r.json());
-    const emails=r.scheduled||[];
-    if(!emails.length){
-      el.innerHTML='<div class="empty"><div class="em">🕐</div><p>No scheduled emails.<br>Use the Schedule button in the email modal to queue emails.</p></div>';
-      return;
-    }
-    el.innerHTML=`<div class="tw"><table>
-      <thead><tr><th>Lead</th><th>Company</th><th>Subject</th><th>Scheduled For</th><th>Timezone</th><th></th></tr></thead>
-      <tbody>${emails.map(e=>`<tr>
-        <td><b>${e.full_name||'—'}</b><div style="font-size:11px;color:var(--t3)">${e.email||''}</div></td>
-        <td style="font-size:12px">${e.company||'—'}</td>
-        <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.subject||'—'}</td>
-        <td style="font-size:12px;color:var(--accent)">${e.send_at?new Date(e.send_at).toLocaleString('en',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}</td>
-        <td style="font-size:11px;color:var(--t3)">${e.timezone||'—'}</td>
-        <td style="display:flex;gap:5px">
-          <button class="btn bw xs" onclick="rescheduleEmail(${e.id},'${e.send_at?.slice(0,16)||''}')">✏ Edit</button>
-          <button class="btn bd xs" onclick="cancelScheduled(${e.id},'${(e.full_name||'').replace(/'/g,"\\'")}')">✕ Cancel</button>
-        </td>
-      </tr>`).join('')}</tbody>
-    </table></div>
-    <div style="margin-top:8px;font-size:11px;color:var(--t3)">${emails.length} email${emails.length!==1?'s':''} scheduled · Sends automatically when due</div>`;
-  }catch(e){el.innerHTML='<div style="color:#F87171;font-size:12px;padding:10px">Could not load scheduled emails.</div>';}
-}
-
-async function cancelScheduled(id,name){
-  if(!confirm(`Cancel scheduled email to ${name}?`))return;
-  try{
-    const r=await fetch('/scheduled-emails/'+id,{method:'DELETE'}).then(r=>r.json());
-    if(r.success){ntf('✓ Cancelled');loadScheduledEmails();}
-    else ntf('Could not cancel','error');
-  }catch(e){ntf('Error','error');}
-}
-
-function rescheduleEmail(id,currentDt){
-  const existing=document.getElementById('mo-reschedule');if(existing)existing.remove();
-  const mo=document.createElement('div');mo.id='mo-reschedule';mo.className='mo show';
-  mo.innerHTML=`<div class="modal" style="width:380px;max-width:95vw">
-    <div class="mh"><div class="mt">✏ Reschedule Email</div><button class="mcl" onclick="document.getElementById('mo-reschedule').remove()">&#215;</button></div>
-    <div class="fm" style="margin-bottom:14px">
-      <label>New Date & Time</label>
-      <input type="datetime-local" id="rsch-dt" value="${currentDt}" style="width:100%">
-    </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn bp" style="flex:1" onclick="confirmReschedule(${id})">Save →</button>
-      <button class="btn bo" onclick="document.getElementById('mo-reschedule').remove()">Cancel</button>
-    </div>
-  </div>`;
-  mo.onclick=e=>{if(e.target===mo)mo.remove();};
-  document.body.appendChild(mo);
-}
-
-async function confirmReschedule(id){
-  const dt=document.getElementById('rsch-dt')?.value;
-  if(!dt){ntf('Pick a date','error');return;}
-  try{
-    const r=await fetch('/scheduled-emails/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({send_at:dt})}).then(r=>r.json());
-    if(r.success){document.getElementById('mo-reschedule')?.remove();ntf('✓ Rescheduled');loadScheduledEmails();}
-    else ntf('Could not reschedule','error');
-  }catch(e){ntf('Error','error');}
-}
-
-// ═══════════════════════════════════════════════════════════
 // EMAIL LOG
 // ═══════════════════════════════════════════════════════════
 async function loadEmailLog(){
@@ -2680,7 +2146,7 @@ async function loadEmailLog(){
     }
     if(!emails.length){tb.innerHTML='<tr><td colspan="8"><div class="empty"><div class="em">&#128196;</div><p>No emails sent in this period.</p></div></td></tr>';return;}
     tb.innerHTML=emails.map(e=>`<tr>
-      <td><b style="cursor:pointer;color:var(--accent)" onclick="openEmail(${e.lead_id})">${e.full_name||'—'}</b></td>
+      <td><b>${e.full_name||'—'}</b></td>
       <td style="font-size:11px;color:var(--t3)">${e.title||'—'}</td>
       <td>${e.company||'—'}</td>
       <td>${e.campaign_name?`<span class="cp">${e.campaign_name}</span>`:'—'}</td>
@@ -2737,22 +2203,9 @@ async function bulkUpdateStatus(){
   if(!status){ntf('Select a status','error');return;}
   if(!confirm(`Update ${selectedLeads.size} leads to "${status}"?`))return;
   try{
-    const leadIds=Array.from(selectedLeads);
-    const leadCount=leadIds.length;
     const r=await fetch('/leads/bulk-status-update',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lead_ids:leadIds,status})}).then(r=>r.json());
-    ntf('✓ '+r.message);
-    if(status==='responded'){
-      let popName=`${leadCount} lead${leadCount>1?'s':''} responded!`;
-      if(leadCount===1){
-        try{
-          const lead=await fetch('/leads/'+leadIds[0]).then(r=>r.json());
-          popName=lead.full_name||popName;
-        }catch(e){}
-      }
-      setTimeout(()=>launchFoxHunt(popName),300);
-    }
-    selectedLeads=new Set();updateBulkUI();loadAllLeads();loadDash();
+      body:JSON.stringify({lead_ids:Array.from(selectedLeads),status})}).then(r=>r.json());
+    ntf('✓ '+r.message);selectedLeads=new Set();updateBulkUI();loadAllLeads();loadDash();
   }catch(e){ntf('Update failed','error');}
 }
 
