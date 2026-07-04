@@ -196,7 +196,36 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
 .fox-catch-title{font-family:'DM Serif Display',serif;font-size:22px;color:#F2E0C8;margin-bottom:4px;}
 .fox-catch-sub{font-size:12px;color:#D4895A;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
+function openVideoEmbed(){
+  if(!curLead){ntf("Open a lead email first","error");return;}
+  const ex=document.getElementById("mo-video");if(ex)ex.remove();
+  const mo=document.createElement("div");mo.id="mo-video";mo.className="mo show";
+  mo.innerHTML=`<div class="modal" style="width:460px;max-width:95vw">
+    <div class="mh"><div class="mt">🎥 Embed Video / Loom</div><button class="mcl" onclick="document.getElementById('mo-video').remove()">&#215;</button></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px;background:var(--ib);border-radius:8px">Paste a Loom, YouTube, or any video URL.</div>
+    <div class="fm" style="margin-bottom:12px"><label>Video URL</label><input type="url" id="vid-url" placeholder="https://www.loom.com/share/..." style="width:100%"></div>
+    <div class="fm" style="margin-bottom:14px"><label>Caption (optional)</label><input type="text" id="vid-caption" placeholder="Watch our 2-min product demo →" style="width:100%" value="Watch our 2-min product demo →"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bp" style="flex:1" onclick="insertVideoEmbed()">Insert into Email →</button>
+      <button class="btn bo" onclick="document.getElementById('mo-video').remove()">Cancel</button>
+    </div>
+  </div>`;
+  mo.onclick=e=>{if(e.target===mo)mo.remove();};
+  document.body.appendChild(mo);
+  setTimeout(()=>document.getElementById("vid-url")?.focus(),100);
+}
+function insertVideoEmbed(){
+  const url=document.getElementById("vid-url")?.value?.trim();
+  const caption=document.getElementById("vid-caption")?.value?.trim()||"Watch video →";
+  if(!url){ntf("Enter a video URL","error");return;}
+  const bodyEl=document.getElementById("em-body");
+  if(!bodyEl){ntf("Generate an email first","error");return;}
+  bodyEl.value=bodyEl.value+`\n\n🎥 ${caption}\n${url}`;
+  document.getElementById("mo-video")?.remove();
+  ntf("✓ Video link added to email");
+}
+</script>
 </head>
 <body>
 <div class="glow g1"></div><div class="glow g2"></div>
@@ -1257,7 +1286,7 @@ async function verInModal(){const btn=event.target;btn.textContent='Verifying...
 async function genEm(type,btn){
   document.querySelectorAll('.etab').forEach(t=>t.classList.remove('on'));btn.classList.add('on');
   document.getElementById('em-content').innerHTML='<div class="ld">Writing email...</div>';
-  const sb=document.getElementById('send-email-btn');if(sb){sb.textContent='&#9889; Send Email';sb.disabled=false;sb.style.background='#2E8B57';sb.style.color='#fff';}
+  const sb=document.getElementById('send-email-btn');if(sb){sb.innerHTML='⚡ Send Email';sb.disabled=false;sb.style.background='#2E8B57';sb.style.color='#fff';}
   try{
     const scenario=document.getElementById('email-scenario')?.value?.trim()||'';
     const d=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:curLead,email_type:type,scenario:scenario||null})}).then(r=>r.json());
@@ -1297,7 +1326,7 @@ function dlCSV(cid=null){let url='/leads/export/csv';if(cid)url+='?campaign_id='
 let selectedLeads=new Set();
 function toggleLeadSel(id,checked){if(checked)selectedLeads.add(id);else selectedLeads.delete(id);updateBulkUI();}
 function toggleAllLeads(checked){document.querySelectorAll('.lead-chk').forEach(cb=>{cb.checked=checked;const id=parseInt(cb.dataset.id);if(checked)selectedLeads.add(id);else selectedLeads.delete(id);});updateBulkUI();}
-function updateBulkUI(){const count=selectedLeads.size;const countEl=document.getElementById('sel-leads-count');const bulkBtn=document.getElementById('bulk-del-btn');if(countEl)countEl.textContent=count>0?count+' selected':'0 selected';if(bulkBtn)bulkBtn.style.display=count>0?'inline-flex':'none';const sa=document.getElementById('sel-all-leads');if(sa){const total=document.querySelectorAll('.lead-chk').length;sa.checked=total>0&&count===total;sa.indeterminate=count>0&&count<total;}}
+function updateBulkUI(){const count=selectedLeads.size;const countEl=document.getElementById('sel-leads-count');const bulkBtn=document.getElementById('bulk-del-btn');const statusSel=document.getElementById('bulk-status-sel');const statusBtn=document.getElementById('bulk-status-btn');if(countEl)countEl.textContent=count>0?count+' selected':'0 selected';if(bulkBtn)bulkBtn.style.display=count>0?'inline-flex':'none';if(statusSel)statusSel.style.display=count>0?'inline-block':'none';if(statusBtn)statusBtn.style.display=count>0?'inline-flex':'none';const sa=document.getElementById('sel-all-leads');if(sa){const total=document.querySelectorAll('.lead-chk').length;sa.checked=total>0&&count===total;sa.indeterminate=count>0&&count<total;}}
 async function bulkDeleteLeads(){if(!selectedLeads.size)return;if(!confirm(`Delete ${selectedLeads.size} selected leads?`))return;ntf('Deleting...','warning');let deleted=0;for(const id of Array.from(selectedLeads)){try{await fetch('/leads/'+id,{method:'DELETE'});deleted++;}catch(e){}}selectedLeads=new Set();ntf(`✓ ${deleted} leads deleted`);loadAllLeads();loadDash();}
 async function deleteAllLeads(){const leads=await fetch('/leads').then(r=>r.json());if(!leads.length){ntf('No leads','error');return;}if(!confirm(`Delete ALL ${leads.length} leads?`))return;ntf('Deleting all...','warning');let deleted=0;for(const l of leads){try{await fetch('/leads/'+l.id,{method:'DELETE'});deleted++;}catch(e){}}ntf(`✓ All ${deleted} deleted`);loadAllLeads();loadDash();}
 
@@ -1853,8 +1882,6 @@ async function loadDeliverabilitySettings(){
     const wl=document.getElementById('warmup-limit');if(wl)wl.value=w.daily_limit||50;
     const we=document.getElementById('warmup-enabled');if(we)we.checked=!!w.warmup_enabled;
     const sc=document.getElementById('set-calendly');if(sc)sc.value=c.calendly_url||'';
-    const sc2=document.getElementById('set-calendly2');if(sc2)sc2.value=c.calendly_url||'';
-    const bu2=document.getElementById('set-baseurl2');if(bu2)bu2.value=document.getElementById('set-baseurl')?.value||'';
     const sw=document.getElementById('set-webhook');if(sw)sw.value=wh.webhook_url||'';
   }catch(e){}
 }

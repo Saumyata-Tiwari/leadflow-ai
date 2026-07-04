@@ -54,33 +54,15 @@ input::placeholder{color:rgba(242,224,200,0.25);}
   <!-- LOGIN -->
   <div id="login-form">
     <div class="fm"><label>Username or Email</label><input type="text" id="l-user" placeholder="your username" autocomplete="username"></div>
-    <div class="fm">
-      <label>Password</label>
-      <div style="position:relative">
-        <input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" style="padding-right:40px;width:100%">
-        <span onclick="togglePwd('l-pass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:14px;color:var(--t3);user-select:none">👁</span>
-      </div>
-    </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2);cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0">
-        <input type="checkbox" id="l-remember" style="width:13px;height:13px;accent-color:var(--accent)"> Remember me
-      </label>
-      <span onclick="showForgot()" style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline">Forgot password?</span>
-    </div>
-    <button class="btn" onclick="doLogin()" id="login-btn">Sign In →</button>
+    <div class="fm"><label>Password</label><div style="position:relative"><input type="password" id="l-pass" style="padding-right:40px;width:100%" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"><span onclick="togglePwd('l-pass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:14px;user-select:none">👁</span></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" id="l-remember" style="width:13px;height:13px"> Remember me</label><span onclick="showForgot()" style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline">Forgot password?</span></div><button class="btn" onclick="doLogin()" id="login-btn">Sign In →</button>
   </div>
 
   <!-- SIGNUP -->
   <div id="signup-form">
     <div class="fm"><label>Username</label><input type="text" id="s-user" placeholder="yourname" autocomplete="username"></div>
     <div class="fm"><label>Email</label><input type="email" id="s-email" placeholder="you@company.com" autocomplete="email"></div>
-    <div class="fm">
-      <label>Password</label>
-      <div style="position:relative">
-        <input type="password" id="s-pass" placeholder="min 6 characters" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSignup()" style="padding-right:40px;width:100%">
-        <span onclick="togglePwd('s-pass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:14px;color:var(--t3);user-select:none">👁</span>
-      </div>
-    </div>
+    <div class="fm"><label>Password</label><input type="password" id="s-pass" placeholder="min 6 characters" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSignup()"></div>
     <button class="btn" onclick="doSignup()" id="signup-btn">Create Account →</button>
   </div>
 
@@ -88,22 +70,9 @@ input::placeholder{color:rgba(242,224,200,0.25);}
 </div>
 
 <script>
-function togglePwd(id,el){
-  const inp=document.getElementById(id);
-  inp.type=inp.type==='password'?'text':'password';
-  el.textContent=inp.type==='password'?'👁':'🙈';
-}
-
-function showForgot(){
-  showErr('Password reset: ask your admin to reset your account, or contact support@leadflowai.com');
-}
-
-// Restore remembered username
-window.addEventListener('DOMContentLoaded',()=>{
-  const saved=localStorage.getItem('lf-remember-user');
-  if(saved){document.getElementById('l-user').value=saved;document.getElementById('l-remember').checked=true;}
-});
-
+function togglePwd(id,el){const inp=document.getElementById(id);inp.type=inp.type==="password"?"text":"password";el.textContent=inp.type==="password"?"👁":"🙈";}
+function showForgot(){showErr("Contact your admin to reset your password.");}
+window.addEventListener("DOMContentLoaded",()=>{const saved=localStorage.getItem("lf-remember-user");if(saved){document.getElementById("l-user").value=saved;document.getElementById("l-remember").checked=true;}});
 function showTab(t){
   document.getElementById('login-form').style.display = t==='login'?'block':'none';
   document.getElementById('signup-form').style.display = t==='signup'?'block':'none';
@@ -118,10 +87,7 @@ function hideMsg(){document.getElementById('err').classList.remove('show');docum
 async function doLogin(){
   const user=document.getElementById('l-user').value.trim();
   const pass=document.getElementById('l-pass').value;
-  const remember=document.getElementById('l-remember').checked;
   if(!user||!pass){showErr('Please fill in all fields');return;}
-  if(remember) localStorage.setItem('lf-remember-user',user);
-  else localStorage.removeItem('lf-remember-user');
   const btn=document.getElementById('login-btn');btn.textContent='Signing in...';btn.disabled=true;
   try{
     const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
