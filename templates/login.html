@@ -30,12 +30,14 @@ input::placeholder{color:rgba(242,224,200,0.25);}
 .btn{width:100%;padding:11px;border-radius:8px;border:none;font-size:13.5px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;background:var(--accent);color:#1A1208;letter-spacing:.02em;transition:all .18s;margin-top:6px;}
 .btn:hover{background:var(--accent2);}
 .btn:disabled{opacity:0.5;cursor:not-allowed;}
+.btn-link{background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;text-decoration:underline;padding:0;font-family:'Outfit',sans-serif;}
 .err{background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.25);border-radius:7px;padding:9px 12px;font-size:12px;color:#F87171;margin-bottom:12px;display:none;}
 .err.show{display:block;}
 .ok{background:rgba(5,150,105,0.08);border:1px solid rgba(5,150,105,0.25);border-radius:7px;padding:9px 12px;font-size:12px;color:#34D399;margin-bottom:12px;display:none;}
 .ok.show{display:block;}
 .hint{font-size:11px;color:var(--t3);text-align:center;margin-top:16px;}
-#signup-form{display:none;}
+#signup-form,#forgot-form{display:none;}
+.back-link{font-size:11px;color:var(--t3);cursor:pointer;text-decoration:underline;margin-bottom:14px;display:inline-block;}
 </style>
 </head>
 <body>
@@ -44,7 +46,7 @@ input::placeholder{color:rgba(242,224,200,0.25);}
 <div class="box">
   <div class="logo">LeadFlow AI</div>
   <div class="logo-sub">B2B Lead Generation</div>
-  <div class="tabs">
+  <div class="tabs" id="main-tabs">
     <div class="tab on" onclick="showTab('login')">Sign In</div>
     <div class="tab" onclick="showTab('signup')">Create Account</div>
   </div>
@@ -66,16 +68,35 @@ input::placeholder{color:rgba(242,224,200,0.25);}
     <button class="btn" onclick="doSignup()" id="signup-btn">Create Account →</button>
   </div>
 
+  <!-- FORGOT PASSWORD -->
+  <div id="forgot-form">
+    <span class="back-link" onclick="showTab('login')">&#8592; Back to Sign In</span>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:14px">Enter your account email — we'll send a password reset link.</div>
+    <div class="fm"><label>Email</label><input type="email" id="f-email" placeholder="you@company.com" autocomplete="email" onkeydown="if(event.key==='Enter')doForgotPassword()"></div>
+    <button class="btn" onclick="doForgotPassword()" id="forgot-btn">Send Reset Link →</button>
+  </div>
+
   <div class="hint">LeadFlow AI · B2B Recruiting Outreach Platform</div>
 </div>
 
 <script>
 function togglePwd(id,el){const inp=document.getElementById(id);inp.type=inp.type==="password"?"text":"password";el.textContent=inp.type==="password"?"👁":"🙈";}
-function showForgot(){showErr("Contact your admin to reset your password.");}
+
+function showForgot(){
+  document.getElementById('login-form').style.display='none';
+  document.getElementById('signup-form').style.display='none';
+  document.getElementById('forgot-form').style.display='block';
+  document.getElementById('main-tabs').style.display='none';
+  hideMsg();
+}
+
 window.addEventListener("DOMContentLoaded",()=>{const saved=localStorage.getItem("lf-remember-user");if(saved){document.getElementById("l-user").value=saved;document.getElementById("l-remember").checked=true;}});
+
 function showTab(t){
+  document.getElementById('main-tabs').style.display='flex';
   document.getElementById('login-form').style.display = t==='login'?'block':'none';
   document.getElementById('signup-form').style.display = t==='signup'?'block':'none';
+  document.getElementById('forgot-form').style.display = 'none';
   document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('on',(t==='login'&&i===0)||(t==='signup'&&i===1)));
   hideMsg();
 }
@@ -88,6 +109,8 @@ async function doLogin(){
   const user=document.getElementById('l-user').value.trim();
   const pass=document.getElementById('l-pass').value;
   if(!user||!pass){showErr('Please fill in all fields');return;}
+  const remember=document.getElementById('l-remember').checked;
+  if(remember)localStorage.setItem('lf-remember-user',user);else localStorage.removeItem('lf-remember-user');
   const btn=document.getElementById('login-btn');btn.textContent='Signing in...';btn.disabled=true;
   try{
     const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -125,6 +148,26 @@ async function doSignup(){
   }catch(e){
     showErr('Signup failed — try again');
     btn.textContent='Create Account →';btn.disabled=false;
+  }
+}
+
+async function doForgotPassword(){
+  const email=document.getElementById('f-email').value.trim();
+  if(!email){showErr('Enter your email address');return;}
+  const btn=document.getElementById('forgot-btn');btn.textContent='Sending...';btn.disabled=true;
+  try{
+    const r=await fetch('/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email})}).then(r=>r.json());
+    if(r.success){
+      showOk(r.message||'If that email is registered, a reset link has been sent.');
+      btn.textContent='Send Reset Link →';btn.disabled=false;
+    }else{
+      showErr(r.detail||'Could not send reset link');
+      btn.textContent='Send Reset Link →';btn.disabled=false;
+    }
+  }catch(e){
+    showErr('Request failed — try again');
+    btn.textContent='Send Reset Link →';btn.disabled=false;
   }
 }
 </script>

@@ -182,19 +182,8 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
 .fox-eyes{transform-origin:50% 50%;animation:blink 4s ease-in-out infinite;}
 @keyframes foxBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
 .fox-body-group{animation:foxBob 2.2s ease-in-out infinite;}
-.fox-hunter{position:fixed;bottom:60px;left:-140px;z-index:99999;pointer-events:none;animation:foxRun 2.2s cubic-bezier(0.4,0,0.2,1) forwards;filter:drop-shadow(0 4px 16px rgba(212,137,90,0.5));}
-@keyframes foxRun{0%{left:-140px;}100%{left:calc(100vw + 20px);}}
-.fox-leg-fl{transform-origin:50% 0%;animation:legRun 0.28s ease-in-out infinite alternate;}
-.fox-leg-bl{transform-origin:50% 0%;animation:legRun 0.28s ease-in-out infinite alternate-reverse;}
-.fox-leg-fr{transform-origin:50% 0%;animation:legRun2 0.28s ease-in-out infinite alternate;}
-.fox-leg-br{transform-origin:50% 0%;animation:legRun2 0.28s ease-in-out infinite alternate-reverse;}
-@keyframes legRun{0%{transform:rotate(-30deg);}100%{transform:rotate(30deg);}}
-@keyframes legRun2{0%{transform:rotate(25deg);}100%{transform:rotate(-25deg);}}
-.fox-catch{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100000;pointer-events:none;animation:catchPop .5s cubic-bezier(0.34,1.56,0.64,1) forwards,catchFade .4s ease .9s forwards;background:#3A2E24;border:2px solid #D4895A;border-radius:16px;padding:18px 32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);}
-@keyframes catchPop{from{opacity:0;transform:translate(-50%,-50%) scale(.6);}to{opacity:1;transform:translate(-50%,-50%) scale(1);}}
-@keyframes catchFade{from{opacity:1;}to{opacity:0;}}
-.fox-catch-title{font-family:'DM Serif Display',serif;font-size:22px;color:#F2E0C8;margin-bottom:4px;}
-.fox-catch-sub{font-size:12px;color:#D4895A;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
+@keyframes foxPopIn{0%{transform:translate(-50%,-50%) scale(0);opacity:0}60%{transform:translate(-50%,-50%) scale(1.08)}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
+@keyframes foxPopOut{0%{opacity:1}100%{transform:translate(-50%,-50%) scale(.8);opacity:0}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
@@ -359,7 +348,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <button class="btn bo sm" onclick="openCooldownSettings()">&#8987; Cooldown</button>
       <button class="btn bo sm" id="pause-camp-btn" onclick="toggleCampaignPause()">⏸ Pause</button>
       <button class="btn bw sm" onclick="openRoleBulkSend()">&#9673; Send by Role</button>
-      <button class="btn bo sm" onclick="openABTest()">&#9783; A/B Test</button>
+      <button class="btn bo sm" onclick="openABTest()">🔀 A/B Test</button>
       <button class="btn bo sm" onclick="showHotCompanies()">🔥 Hot Companies</button>
     </div>
   </div>
@@ -545,7 +534,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <label class="crow" style="font-size:12px;font-weight:600;color:var(--t2)"><input type="checkbox" id="sel-all-leads" onchange="toggleAllLeads(this.checked)" style="width:14px;height:14px;accent-color:var(--accent)"> Select All</label>
       <span id="sel-leads-count" style="font-size:11.5px;color:var(--t3)">0 selected</span>
       <button class="btn bd sm" id="bulk-del-btn" onclick="bulkDeleteLeads()" style="display:none">&#10005; Delete Selected</button>
-      <select id="bulk-status-sel" style="display:none;width:150px" id="bulk-status-sel">
+      <select id="bulk-status-sel" style="display:none;width:150px">
         <option value="">Change status...</option>
         <option value="new">New</option>
         <option value="emailed">Emailed</option>
@@ -617,7 +606,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
   </div>
   <div class="card">
     <div class="ct" style="margin-bottom:16px">Connect Your Gmail</div>
-    <div style="font-size:12px;color:var(--t2);margin-bottom:16px;padding:10px 12px;background:var(--ib);border-radius:8px;border:1px solid var(--ic);line-height:1.7">Works for <b style="color:var(--accent)">@gmail.com</b> and <b style="color:var(--accent)">Google Workspace company emails</b>. Each user connects their own — emails send from your address.</div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:16px;padding:10px 12px;background:var(--ib);border-radius:8px;border:1px solid var(--ic);line-height:1.7">Works for <b style="color:var(--accent)">@gmail.com</b> and <b style="color:var(--accent)">Google Workspace company emails</b>. Each user connects their own — emails send from your address. Note: this Gmail connection is used only for <b style="color:var(--accent)">reply detection</b> — actual sending goes through Resend.</div>
     <div class="fg">
       <div class="fm full"><label>Your Email Address</label><input type="email" id="set-gmail" placeholder="you@yourcompany.com or you@gmail.com"></div>
       <div class="fm full">
@@ -641,10 +630,6 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
         <label>Calendly / Booking Link (optional)</label>
         <input type="url" id="set-calendly" placeholder="https://calendly.com/your-name/15min">
         <div style="font-size:11px;color:var(--t3);margin-top:4px">Auto-appended to every email CTA — "Book a 15-min call here: [link]"</div>
-      </div>
-      <div class="fm">
-        <label>Your LeadFlow URL (for unsubscribe links)</label>
-        <div style="font-size:11px;color:var(--t3);margin-top:4px">Change to your Railway URL when deployed</div>
       </div>
       <div class="fm">
         <label>Daily Email Send Limit (warm-up)</label>
@@ -702,7 +687,6 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       </div>
     </div>
   </div>
-</div>
 
   <!-- TEAM MEMBERS SECTION -->
   <div class="card" style="margin-top:20px">
@@ -878,11 +862,11 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
         <input type="file" id="email-attachment" style="display:none" accept=".pdf,.doc,.docx,.txt,.png,.jpg" onchange="showAttachment(this)">
       </label>
       <span id="attachment-name" style="font-size:11px;color:var(--t3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <button class="btn bo sm" onclick="openVideoEmbed()" title="Embed a Loom / video link">🎥 Video</button>
       <div style="width:1px;height:20px;background:var(--dv)"></div>
       <button class="btn bs sm" onclick="updSt('responded')">✓ Responded</button>
       <button class="btn bw sm" onclick="updSt('soft_rejection')">Soft Rejection</button>
       <button class="btn bd sm" onclick="updSt('rejected')">Rejected</button>
-      <button class="btn bo xs" onclick="checkSpamScore()" title="Check spam score">&#9670; Spam Check</button>
       <button class="btn bo sm" onclick="saveCurrentAsTemplate()" title="Save this email as a template">&#9999; Save as Template</button>
       <button class="btn bo sm" onclick="cmo('mo-email')">Close</button>
     </div>
@@ -1074,8 +1058,10 @@ async function loadMoreResults(){
   try{
     const d=await fetch('/search-jobs/'+currentCampaignId+'?page='+currentPage).then(r=>r.json());
     const ex=new Set(searchResults.map(j=>j.employer_name));
-    searchResults=[...searchResults,...(d.jobs||[]).filter(j=>!ex.has(j.employer_name))];
+    const newOnes=(d.jobs||[]).filter(j=>!ex.has(j.employer_name));
+    searchResults=[...searchResults,...newOnes];
     renderResults();document.getElementById('page-info').textContent=`Page ${currentPage} - ${searchResults.length} total`;
+    if(!newOnes.length){ntf('No new companies on this page — try again or adjust filters','warning');}
   }catch(e){ntf('Error','error');}
   btn.textContent='Load More';btn.disabled=false;
 }
@@ -1116,6 +1102,7 @@ async function loadCompanies(cid){
       <td><b>${c.total_contacts||0}</b></td><td style="color:#34D399;font-weight:600">${c.responded||0}</td>
       <td style="display:flex;gap:5px">
         <button class="btn bp xs" onclick="openComp(${c.id},'${esc(c.name)}',${currentCampaignId},'${esc(c.website||'')}')">Contacts</button>
+        <button class="btn bw xs" onclick="enrichCompany(${c.id},'${esc(c.name)}')" title="Fill in missing industry/domain/revenue">&#8635; Enrich</button>
         <button class="btn bd xs" onclick="delComp(${c.id})">&#10005;</button>
       </td>
     </tr>`).join('');
@@ -1174,6 +1161,15 @@ async function loadContacts(cid){
 }
 
 function backToCamp(){document.querySelectorAll('.pg').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));document.getElementById('pg-campaign-detail').classList.add('active');document.querySelectorAll('.ni')[1]?.classList.add('on');loadCompanies(currentCampaignId);}
+
+async function enrichCompany(companyId,companyName){
+  ntf('Enriching '+companyName+'...','warning');
+  try{
+    const r=await fetch('/companies/'+companyId+'/enrich',{method:'PATCH'}).then(r=>r.json());
+    if(r.success){ntf('✓ '+companyName+' enriched'+(r.updated&&r.updated.length?' - updated: '+r.updated.join(', '):' - no new data found'));loadCompanies(currentCampaignId);}
+    else ntf('Could not enrich','error');
+  }catch(e){ntf('Enrich failed','error');}
+}
 
 async function autoFindContacts(){
   if(!curComp)return;const btn=document.getElementById('auto-find-btn');btn.textContent='Hunting...';btn.disabled=true;ntf('Searching for decision makers...','warning');
@@ -1266,7 +1262,7 @@ async function verInModal(){const btn=event.target;btn.textContent='Verifying...
 async function genEm(type,btn){
   document.querySelectorAll('.etab').forEach(t=>t.classList.remove('on'));btn.classList.add('on');
   document.getElementById('em-content').innerHTML='<div class="ld">Writing email...</div>';
-  const sb=document.getElementById('send-email-btn');if(sb){sb.textContent='&#9889; Send Email';sb.disabled=false;sb.style.background='#2E8B57';sb.style.color='#fff';}
+  const sb=document.getElementById('send-email-btn');if(sb){sb.textContent='⚡ Send Email';sb.disabled=false;sb.style.background='#2E8B57';sb.style.color='#fff';}
   try{
     const scenario=document.getElementById('email-scenario')?.value?.trim()||'';
     const d=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:curLead,email_type:type,scenario:scenario||null})}).then(r=>r.json());
@@ -1277,7 +1273,15 @@ async function genEm(type,btn){
 
 function copyEmail(){const subject=document.getElementById('em-subject')?.value||'',body=document.getElementById('em-body')?.value||'';const full=`Subject: ${subject}\n\n${body}`;navigator.clipboard.writeText(full).then(()=>ntf('✓ Copied')).catch(()=>{const ta=document.createElement('textarea');ta.value=full;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();ntf('✓ Copied');});}
 
-async function updSt(status){if(!curLead)return;const _name=(curLeadData&&curLeadData.full_name)||'Lead';await fetch('/leads/'+curLead+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});const m={responded:'✓ Responded',soft_rejection:'Soft Rejection noted',rejected:'Rejected'};ntf(m[status]||'Updated');loadDash();cmo('mo-email');if(curComp)loadContacts(curComp);if(status==='responded'){setTimeout(()=>launchFoxHunt(_name),300);}}
+async function updSt(status){
+  if(!curLead)return;
+  const _name=(curLeadData&&curLeadData.full_name)||'Lead';
+  await fetch('/leads/'+curLead+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+  const m={responded:'✓ Responded',soft_rejection:'Soft Rejection noted',rejected:'Rejected'};
+  ntf(m[status]||'Updated');
+  loadDash();cmo('mo-email');if(curComp)loadContacts(curComp);
+  if(status==='responded'){setTimeout(()=>launchFoxHunt(_name),300);}
+}
 
 async function loadEmailFlowLeads(){try{const leads=await fetch('/leads').then(r=>r.json());const sel=document.getElementById('ef-lead-sel');sel.innerHTML='<option value="">Choose a lead</option>'+leads.slice(0,20).map(l=>`<option value="${l.id}">${l.full_name} @ ${l.company}</option>`).join('');}catch(e){}}
 async function genEmailFromFlow(){const id=document.getElementById('ef-lead-sel').value;if(!id){ntf('Select a lead','error');return;}const preview=document.getElementById('ef-preview');preview.innerHTML='<div class="ld">Generating...</div>';try{const d=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:parseInt(id),email_type:'cold'})}).then(r=>r.json());preview.innerHTML=`<div class="ep"><div class="esb">Subject: ${d.subject}</div><div style="font-size:13px;line-height:1.8;color:var(--t2);white-space:pre-wrap">${d.body}</div></div><div style="margin-top:10px"><button class="btn bo sm" onclick="openEmail(${id})">Open Full Generator</button></div>`;}catch(e){preview.innerHTML='<div style="color:var(--red);font-size:12px">Error</div>';}}
@@ -1330,7 +1334,29 @@ async function saveEditContact(){const id=document.getElementById('ec-id').value
 const foxTags=['on the hunt','finding leads','sniffing trails','ready to pounce'];let foxTagIdx=0;
 setInterval(()=>{foxTagIdx=(foxTagIdx+1)%foxTags.length;const el=document.getElementById('fox-tag');if(el){el.style.opacity='0';setTimeout(()=>{el.textContent=foxTags[foxTagIdx];el.style.opacity='1';},300);}},4000);
 function foxBark(){const el=document.getElementById('fox-tag');if(el){el.textContent='on it!';setTimeout(()=>{el.textContent=foxTags[foxTagIdx];},1500);}}
-function launchFoxHunt(leadName){const fox=document.createElement('div');fox.className='fox-hunter';fox.innerHTML=`<svg viewBox="0 0 160 80" width="160" height="80"><path d="M30 44 Q10 36 14 52 Q16 64 30 58 Q38 54 36 44Z" fill="#D4895A"/><path d="M36 34 Q36 60 80 60 Q124 60 124 34 Q116 24 80 22 Q44 24 36 34Z" fill="#D4895A"/><ellipse cx="80" cy="50" rx="26" ry="12" fill="#F2E0C8"/><ellipse cx="114" cy="27" rx="4" ry="3.5" fill="#2C1A0E"/><g class="fox-leg-fl"><rect x="104" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g><g class="fox-leg-bl"><rect x="52" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g><g class="fox-leg-fr"><rect x="90" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g><g class="fox-leg-br"><rect x="64" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g></svg>`;document.body.appendChild(fox);setTimeout(()=>{const badge=document.createElement('div');badge.className='fox-catch';badge.innerHTML=`<div class="fox-catch-title">Lead Caught!</div><div class="fox-catch-sub">${leadName||'They responded!'}</div>`;document.body.appendChild(badge);setTimeout(()=>badge.remove(),1400);},900);setTimeout(()=>fox.remove(),2400);const tag=document.getElementById('fox-tag');if(tag){tag.textContent='got one!';setTimeout(()=>{tag.textContent='on the hunt';},3000);}}
+
+// ── UNIFIED FOX-HUNT CELEBRATION ──────────────────────────────────
+// Accepts either a lead name (string, singular) or a count (number, plural).
+// Fired from: updSt('responded') [single lead], bulkUpdateStatus() [bulk],
+// and scanReplies() [auto-detected replies].
+function launchFoxHunt(param){
+  const ex=document.getElementById('fox-hunt-popup');if(ex)ex.remove();
+  let message;
+  if(typeof param==='number'){
+    message = param===1 ? '1 lead responded' : `${param} leads responded`;
+  }else if(typeof param==='string' && param){
+    message = `${param} responded`;
+  }else{
+    message = 'A lead responded!';
+  }
+  const p=document.createElement('div');p.id='fox-hunt-popup';
+  p.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:999999;background:var(--bg2,#2C1A0E);border:2px solid var(--accent,#D4895A);border-radius:20px;padding:32px 40px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.6);min-width:280px;animation:foxPopIn .4s cubic-bezier(.34,1.56,.64,1) forwards;';
+  p.innerHTML='<div style="font-size:56px;margin-bottom:8px">🦊</div><div style="font-family:serif;font-size:22px;color:var(--accent,#D4895A);margin-bottom:6px">'+message+'</div><div style="font-size:11px;color:var(--t3);margin-top:8px">Flo is on fire 🔥</div>';
+  document.body.appendChild(p);
+  p.onclick=()=>p.remove();
+  setTimeout(()=>{p.style.animation='foxPopOut .3s ease forwards';setTimeout(()=>p.remove(),300);},2500);
+  const tag=document.getElementById('fox-tag');if(tag){tag.textContent='got one! 🎉';setTimeout(()=>tag.textContent='on the hunt',3000);}
+}
 
 function doLogout(){fetch('/auth/logout',{method:'POST'}).then(()=>window.location.href='/login');}
 function loadCurrentUser(){fetch('/auth/me').then(r=>r.json()).then(u=>{const el=document.getElementById('sidebar-user');if(el&&u.username)el.textContent='Signed in as '+u.username;}).catch(()=>{});}
@@ -1350,15 +1376,18 @@ async function saveEmailSettings(){
   const gmail=document.getElementById('set-gmail').value.trim();
   const pass=document.getElementById('set-gpass').value.trim();
   const freq=document.getElementById('set-freq').value;
+  const baseurl=document.getElementById('set-baseurl')?.value?.trim()||'';
+  const calendly=document.getElementById('set-calendly')?.value?.trim()||'';
+  const dailylimit=parseInt(document.getElementById('set-dailylimit')?.value)||20;
   if(!gmail||!pass){ntf('Enter email and app password','error');return;}
   const res=document.getElementById('settings-result');
   res.innerHTML='<div class="ld">Testing connection...</div>';
   try{
     const r=await fetch('/user/email-settings',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({gmail_user:gmail,gmail_app_password:pass,imap_enabled:true,scan_frequency:parseInt(freq)})}).then(r=>r.json());
+      body:JSON.stringify({gmail_user:gmail,gmail_app_password:pass,imap_enabled:true,scan_frequency:parseInt(freq),base_url:baseurl||undefined,calendly_url:calendly||undefined,daily_send_limit:dailylimit})}).then(r=>r.json());
     if(r.success){
-      ntf('✓ Gmail connected: '+gmail);
-      res.innerHTML='<div style="color:#34D399;font-size:12.5px;padding:10px;background:rgba(5,150,105,0.08);border-radius:7px">✓ Connected! Emails will now send from '+gmail+'</div>';
+      ntf('✓ Settings saved: '+gmail);
+      res.innerHTML='<div style="color:#34D399;font-size:12.5px;padding:10px;background:rgba(5,150,105,0.08);border-radius:7px">✓ Saved! Reply detection connected for '+gmail+'</div>';
       document.getElementById('email-connected-banner').style.display='block';
       document.getElementById('settings-email-display').textContent='Sending from: '+gmail;
     }else{
@@ -1528,8 +1557,6 @@ async function bulkFollowupSend(type){
   }catch(e){ntf('Failed','error');}
 }
 
-
-
 // ── SCAN REPLIES ─────────────────────────────────────────────────
 async function scanReplies(){
   const btn=document.getElementById('scan-replies-btn');
@@ -1538,6 +1565,11 @@ async function scanReplies(){
     const r=await fetch('/scan-replies',{method:'POST'}).then(r=>r.json());
     if(r.detected&&r.detected.length>0){
       ntf('✓ '+r.detected.length+' repl'+(r.detected.length===1?'y':'ies')+' auto-detected!');
+      if(r.detected.length===1){
+        setTimeout(()=>launchFoxHunt(r.detected[0].name),300);
+      }else{
+        setTimeout(()=>launchFoxHunt(r.detected.length),300);
+      }
       loadDash();
       if(curComp)loadContacts(curComp);
     }else{
@@ -1555,6 +1587,29 @@ function showAttachment(input){
     if(nameEl)nameEl.textContent=fname.length>20?fname.substring(0,17)+'...':fname;
     ntf('📎 Attached: '+fname,'warning');
   }
+}
+
+// ── VIDEO EMBED ───────────────────────────────────────────────────
+function openVideoEmbed(){
+  if(!curLead){ntf('Open a lead email first','error');return;}
+  const ex=document.getElementById('mo-video');if(ex)ex.remove();
+  const mo=document.createElement('div');mo.id='mo-video';mo.className='mo show';
+  mo.innerHTML=`<div class="modal" style="width:460px;max-width:95vw"><div class="mh"><div class="mt">🎥 Embed Video / Loom</div><button class="mcl" onclick="document.getElementById('mo-video').remove()">&#215;</button></div><div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px;background:var(--ib);border-radius:8px">Paste a Loom, YouTube, or any video URL.</div><div class="fm" style="margin-bottom:12px"><label>Video URL</label><input type="url" id="vid-url" placeholder="https://www.loom.com/share/..." style="width:100%"></div><div class="fm" style="margin-bottom:14px"><label>Caption (optional)</label><input type="text" id="vid-caption" placeholder="Watch our 2-min product demo →" style="width:100%" value="Watch our 2-min product demo →"></div><div style="display:flex;gap:8px"><button class="btn bp" style="flex:1" onclick="insertVideoEmbed()">Insert into Email →</button><button class="btn bo" onclick="document.getElementById('mo-video').remove()">Cancel</button></div></div>`;
+  mo.onclick=e=>{if(e.target===mo)mo.remove();};document.body.appendChild(mo);
+  setTimeout(()=>document.getElementById('vid-url')?.focus(),100);
+}
+function insertVideoEmbed(){
+  const url=document.getElementById('vid-url')?.value?.trim();
+  const caption=document.getElementById('vid-caption')?.value?.trim()||'Watch video →';
+  if(!url){ntf('Enter a video URL','error');return;}
+  const bodyEl=document.getElementById('em-body');
+  if(!bodyEl){ntf('Generate an email first','error');return;}
+  bodyEl.value=bodyEl.value+`
+
+🎥 ${caption}
+${url}`;
+  document.getElementById('mo-video')?.remove();
+  ntf('✓ Video link added to email');
 }
 
 // ── OVERRIDE sendEmailNow to support attachments ─────────────────
@@ -1607,16 +1662,9 @@ setInterval(()=>{
   }
 },30*60*1000);
 
-// ══════════════════════════════════════════════════════════════
-// END NEW FEATURE JS
-// ══════════════════════════════════════════════════════════════
-
-
-
 // ── ROLE-BASED BULK SEND ─────────────────────────────────
 async function openRoleBulkSend(){
   if(!currentCampaignId){ntf('Open a campaign first','error');return;}
-  // Fetch unique roles from this campaign
   const data = await fetch('/campaigns/'+currentCampaignId+'/leads-by-role').then(r=>r.json());
   const roles = data.roles || [];
   if(!roles.length){ntf('No contacts saved yet in this campaign','error');return;}
@@ -1693,10 +1741,8 @@ async function executeRoleBulkSend(){
       setTimeout(()=>document.getElementById('mo-role-bulk')?.remove(),2000);
     }else{ntf(r.message||'Send failed','error');}
   }catch(e){ntf('Failed','error');}
-  btn.textContent='&#9889; Send to Selected Role &#8594;';btn.disabled=false;
+  btn.textContent='⚡ Send to Selected Role →';btn.disabled=false;
 }
-// ── END ROLE-BASED BULK SEND ─────────────────────────────
-
 
 async function previewBulkEmail(){
   if(!currentCampaignId){ntf('Open a campaign first','error');return;}
@@ -1729,7 +1775,6 @@ async function previewBulkEmail(){
   }catch(e){ntf('Preview failed','error');}
 }
 
-
 // ── LINKEDIN BUTTON ──────────────────────────────────────
 function openLinkedIn(url,name,company){if(url&&url!=='undefined'&&url.includes('linkedin')){window.open(url,'_blank');}else{window.open('https://www.google.com/search?q='+encodeURIComponent(name+' '+company+' LinkedIn'),'_blank');}}
 
@@ -1742,23 +1787,20 @@ async function checkSpamScore(){
   disp.style.display='inline-block';disp.textContent='Checking...';
   try{
     const r=await fetch('/check-spam-score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject,body})}).then(r=>r.json());
-    const cmap={green:'rgba(5,150,105,0.15)',amber:'rgba(212,137,90,0.15)',red:'rgba(220,38,38,0.1)'};
-    const tmap={green:'#34D399',amber:'var(--accent)',red:'#F87171'};
+    const cmap={green:'rgba(5,150,105,0.15)',orange:'rgba(212,137,90,0.15)',red:'rgba(220,38,38,0.1)'};
+    const tmap={green:'#34D399',orange:'var(--accent)',red:'#F87171'};
     Object.assign(disp.style,{background:cmap[r.color]||'var(--ib)',color:tmap[r.color]||'var(--t2)',border:`1px solid ${tmap[r.color]}`,padding:'3px 8px',borderRadius:'5px'});
-    disp.textContent=`Score: ${r.score}/100 — ${r.rating}`;
-    ntf(r.issues?.length?'Issues: '+r.issues.slice(0,2).join(' · '):`Score: ${r.score}/100 — ${r.rating}`,r.color==='green'?'success':'warning');
+    disp.textContent=`Score: ${r.score}/10 — ${r.grade}`;
+    ntf(r.issues?.length?'Issues: '+r.issues.slice(0,2).map(i=>i.issue).join(' · '):`Score: ${r.score}/10 — ${r.grade}`,r.color==='green'?'success':'warning');
   }catch(e){ntf('Check failed','error');disp.style.display='none';}
 }
-
-// ── PREVIEW BULK EMAIL ────────────────────────────────────
-
 
 // ── A/B TEST ──────────────────────────────────────────────
 function openABTest(){
   if(!currentCampaignId){ntf('Open a campaign first','error');return;}
   const ex=document.getElementById('mo-ab');if(ex)ex.remove();
   const mo=document.createElement('div');mo.id='mo-ab';mo.className='mo show';
-  mo.innerHTML=`<div class="modal" style="width:520px"><div class="mh"><div class="mt">&#9783; A/B Test Email</div><button class="mcl" onclick="document.getElementById('mo-ab').remove()">&#215;</button></div><div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px 12px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)"><b>Variant A</b>: Direct opener &nbsp;|&nbsp; <b>Variant B</b>: Question opener<br>Split your audience 50/50. Check opens after 24h.</div><div class="fm" style="margin-bottom:14px"><label>Context / Intent</label><textarea id="ab-scenario" placeholder="e.g. Introduce LeadFlow AI..." style="min-height:60px;resize:none;font-size:12px"></textarea></div><div id="ab-progress" style="display:none;margin-bottom:12px"><div style="font-size:12px;color:var(--t2);margin-bottom:5px" id="ab-status">Running...</div><div style="height:5px;background:var(--ib);border-radius:3px;overflow:hidden"><div id="ab-bar" style="height:100%;background:var(--rust);border-radius:3px;width:0%"></div></div></div><div style="display:flex;gap:8px"><button class="btn bp" id="ab-btn" onclick="executeABTest()">&#9783; Start A/B Test &#8594;</button><button class="btn bo" onclick="document.getElementById('mo-ab').remove()">Cancel</button></div></div>`;
+  mo.innerHTML=`<div class="modal" style="width:520px"><div class="mh"><div class="mt">🔀 A/B Test Email</div><button class="mcl" onclick="document.getElementById('mo-ab').remove()">&#215;</button></div><div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px 12px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)"><b>Variant A</b>: Direct opener &nbsp;|&nbsp; <b>Variant B</b>: Question opener<br>Split your audience 50/50. Check opens after 24h.</div><div class="fm" style="margin-bottom:14px"><label>Context / Intent</label><textarea id="ab-scenario" placeholder="e.g. Introduce LeadFlow AI..." style="min-height:60px;resize:none;font-size:12px"></textarea></div><div id="ab-progress" style="display:none;margin-bottom:12px"><div style="font-size:12px;color:var(--t2);margin-bottom:5px" id="ab-status">Running...</div><div style="height:5px;background:var(--ib);border-radius:3px;overflow:hidden"><div id="ab-bar" style="height:100%;background:var(--rust);border-radius:3px;width:0%"></div></div></div><div style="display:flex;gap:8px"><button class="btn bp" id="ab-btn" onclick="executeABTest()">🔀 Start A/B Test →</button><button class="btn bo" onclick="document.getElementById('mo-ab').remove()">Cancel</button></div></div>`;
   document.body.appendChild(mo);
 }
 async function executeABTest(){
@@ -1771,7 +1813,7 @@ async function executeABTest(){
     if(r.success){ntf('✓ '+r.message);document.getElementById('ab-status').textContent=r.message;loadDash();setTimeout(()=>document.getElementById('mo-ab')?.remove(),2500);}
     else ntf(r.message||'Failed','error');
   }catch(e){ntf('Failed','error');}
-  btn.textContent='&#9783; Start A/B Test &#8594;';btn.disabled=false;
+  btn.textContent='🔀 Start A/B Test →';btn.disabled=false;
 }
 
 // ── HOT COMPANIES ─────────────────────────────────────────
@@ -1849,7 +1891,7 @@ async function saveDeliverabilitySettings(){
   const webhook=document.getElementById('set-webhook')?.value?.trim()||'';
   try{
     await Promise.all([
-      fetch('/warmup-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({warmup_enabled:enabled,daily_limit:limit})}),
+      fetch('/warmup-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:limit})}),
       fetch('/meeting-link-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({calendly_url:calendly})}),
       fetch('/webhook-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({webhook_url:webhook,webhook_events:'responded'})})
     ]);
@@ -1860,17 +1902,13 @@ async function loadDeliverabilitySettings(){
   try{
     const [w,c,wh]=await Promise.all([fetch('/warmup-settings').then(r=>r.json()),fetch('/meeting-link-settings').then(r=>r.json()),fetch('/webhook-settings').then(r=>r.json())]);
     const wl=document.getElementById('warmup-limit');if(wl)wl.value=w.daily_limit||50;
-    const we=document.getElementById('warmup-enabled');if(we)we.checked=!!w.warmup_enabled;
     const sc=document.getElementById('set-calendly');if(sc)sc.value=c.calendly_url||'';
-    const sc2=document.getElementById('set-calendly2');if(sc2)sc2.value=c.calendly_url||'';
-    const bu2=document.getElementById('set-baseurl2');if(bu2)bu2.value=document.getElementById('set-baseurl')?.value||'';
     const sw=document.getElementById('set-webhook');if(sw)sw.value=wh.webhook_url||'';
   }catch(e){}
 }
 
-
 // ═══════════════════════════════════════════════════════════
-// FEATURE 17 — DASHBOARD CHARTS
+// DASHBOARD CHARTS
 // ═══════════════════════════════════════════════════════════
 let chartEmails=null, chartFunnel=null, chartOpen=null, chartReply=null;
 
@@ -1893,14 +1931,12 @@ async function loadDashCharts(){
   const co = getChartColors();
 
   try{
-    // Get stats
     const [stats, leads, camps] = await Promise.all([
       fetch('/leads/stats').then(r=>r.json()),
       fetch('/leads').then(r=>r.json()),
       fetch('/campaigns').then(r=>r.json()),
     ]);
 
-    // ── Emails sent last 7 days ──
     const days = [];
     const dayCounts = [];
     for(let i=6;i>=0;i--){
@@ -1921,7 +1957,6 @@ async function loadDashCharts(){
       });
     }
 
-    // ── Pipeline funnel ──
     const total=stats.total_leads||0;
     const emailed=stats.emailed||0;
     const opened=leads.filter(l=>l.email_opened).length;
@@ -1939,7 +1974,6 @@ async function loadDashCharts(){
       });
     }
 
-    // ── Open rate donut ──
     const openRate = emailed>0 ? Math.round((opened/emailed)*100) : 0;
     const replyRate = emailed>0 ? Math.round((responded/emailed)*100) : 0;
     document.getElementById('open-rate-val').textContent = openRate+'%';
@@ -1965,7 +1999,6 @@ async function loadDashCharts(){
       });
     }
 
-    // ── Campaign activity ──
     const actEl = document.getElementById('camp-activity');
     if(actEl && camps.length){
       actEl.innerHTML = camps.slice(0,4).map(c=>
@@ -1979,7 +2012,7 @@ async function loadDashCharts(){
 }
 
 // ═══════════════════════════════════════════════════════════
-// FEATURE 18 — MULTI-USER / INVITE TEAM MEMBER
+// MULTI-USER / INVITE TEAM MEMBER
 // ═══════════════════════════════════════════════════════════
 function openInviteUser(){
   const ex=document.getElementById('mo-invite');if(ex)ex.remove();
@@ -1987,7 +2020,7 @@ function openInviteUser(){
   mo.innerHTML=`<div class="modal" style="width:480px">
     <div class="mh"><div class="mt">+ Invite Team Member</div><button class="mcl" onclick="document.getElementById('mo-invite').remove()">&#215;</button></div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px 12px;background:var(--ib);border-radius:8px;border:1px solid var(--ic);line-height:1.7">
-      Each team member gets their own login, their own Gmail, and their own campaigns. Admins see everything. Members see their own campaigns only.
+      Each team member gets their own login. Admins see everything. Members see their own campaigns only.
     </div>
     <div class="fg">
       <div class="fm full"><label>Team Member Email</label><input type="email" id="inv-email" placeholder="colleague@company.com"></div>
@@ -2018,14 +2051,14 @@ async function sendInvite(){
     const r=await fetch('/auth/invite',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({email,role,password:pass})}).then(r=>r.json());
     if(r.success){
-      res.innerHTML=`<div style="padding:10px;background:var(--green-soft);border:1px solid rgba(5,150,105,0.3);border-radius:7px;font-size:12.5px;color:#34D399">✓ Account created for ${email}. Share these credentials:<br><b>Email:</b> ${email} &nbsp;|&nbsp; <b>Password:</b> ${pass}</div>`;
+      res.innerHTML=`<div style="padding:10px;background:var(--green-soft);border:1px solid rgba(5,150,105,0.3);border-radius:7px;font-size:12.5px;color:#34D399">✓ Account created for ${email} and an invite email was sent.</div>`;
       ntf('✓ Team member added: '+email);
+      loadTeamMembers();
     }else{
       res.innerHTML=`<div style="color:#F87171;font-size:12px">${r.message||'Failed'}</div>`;
     }
   }catch(e){res.innerHTML='<div style="color:#F87171;font-size:12px">Error creating account</div>';}
 }
-
 
 // ═══════════════════════════════════════════════════════════
 // EMAIL TEMPLATES
@@ -2040,7 +2073,6 @@ async function loadTemplates(){
     if(!templates.length){el.innerHTML='<div class="empty"><div class="em">&#9999;</div><p>No templates yet.<br>Save your first email template above.</p></div>';return;}
     el.innerHTML=templates.map(t=>{
     const safeName=t.name||'';
-    const safeSubj=(t.subject||'').replace(/`/g,"'");
     const safeBody=(t.body||'').replace(/`/g,"'").substring(0,100);
     return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:12px 14px;background:var(--ib);border:1px solid var(--ic);border-radius:8px;margin-bottom:8px">
       <div style="flex:1;min-width:0">
@@ -2053,7 +2085,7 @@ async function loadTemplates(){
         <button class="btn bd xs" onclick="deleteTemplate(${t.id})">&#10005;</button>
       </div>
     </div>`;
-  }).join('');;
+  }).join('');
   }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px">Error loading templates</div>';}
 }
 
@@ -2077,21 +2109,19 @@ async function saveTemplate(){
 
 async function loadTemplateById(id){
   try{
-    const r=await fetch('/email-templates').then(r=>r.json());
-    const t=(r.templates||[]).find(x=>x.id===id);
+    const r=await fetch('/email-templates/'+id+'/use',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json());
+    const t=r.template;
     if(!t){ntf('Template not found','error');return;}
     const subEl=document.getElementById('em-subject');
     const bodyEl=document.getElementById('em-body');
     if(subEl&&bodyEl){
       subEl.value=t.subject||'';
       bodyEl.value=t.body||'';
-      fetch('/email-templates/'+id+'/use',{method:'PUT'});
       ntf('✓ Template loaded');
       const modal=document.getElementById('mo-email');
       if(modal&&!modal.classList.contains('show'))modal.classList.add('show');
     }else{
       navigator.clipboard.writeText((t.subject?'Subject: '+t.subject+'\n\n':'')+t.body).then(()=>ntf('✓ Copied to clipboard'));
-      fetch('/email-templates/'+id+'/use',{method:'PUT'});
     }
   }catch(e){ntf('Error loading template','error');}
 }
@@ -2102,25 +2132,6 @@ async function deleteTemplate(id){
   ntf('Template deleted');loadTemplates();
 }
 
-function useTemplate(id,subject,body){
-  // Load into email modal if open, otherwise copy to clipboard
-  const subEl=document.getElementById('em-subject');
-  const bodyEl=document.getElementById('em-body');
-  if(subEl&&bodyEl){
-    subEl.value=subject;
-    bodyEl.value=body.replace(/\n/g,'\n');
-    fetch('/email-templates/'+id+'/use',{method:'PUT'});
-    ntf('✓ Template loaded into email');
-    const modal=document.getElementById('mo-email');
-    if(!modal.classList.contains('show')) modal.classList.add('show');
-  }else{
-    const full='Subject: '+subject+'\n\n'+body;
-    navigator.clipboard.writeText(full).then(()=>ntf('✓ Template copied to clipboard'));
-    fetch('/email-templates/'+id+'/use',{method:'PUT'});
-  }
-}
-
-// Also add "Save as Template" button to email modal
 function saveCurrentAsTemplate(){
   const subject=document.getElementById('em-subject')?.value||'';
   const body=document.getElementById('em-body')?.value||'';
@@ -2181,10 +2192,11 @@ async function toggleCampaignPause(){
   if(campaignIsPaused){
     await fetch('/campaigns/'+currentCampaignId+'/resume',{method:'POST'});
     campaignIsPaused=false; btn.textContent='⏸ Pause';
+    btn.style.background='';btn.style.borderColor='';btn.style.color='';
     ntf('✓ Campaign resumed — emails will send normally');
   }else{
     await fetch('/campaigns/'+currentCampaignId+'/pause',{method:'POST'});
-    campaignIsPaused=true; btn.textContent='&#9654; Resume';
+    campaignIsPaused=true; btn.textContent='▶ Resume';
     btn.style.background='rgba(220,38,38,0.1)'; btn.style.borderColor='rgba(220,38,38,0.3)'; btn.style.color='#F87171';
     ntf('Campaign paused — no emails will send until resumed','warning');
   }
@@ -2196,7 +2208,7 @@ async function checkCampaignPauseStatus(){
     const r=await fetch('/campaigns/'+currentCampaignId+'/status').then(r=>r.json());
     const btn=document.getElementById('pause-camp-btn');
     if(r.is_paused){
-      campaignIsPaused=true;if(btn){btn.textContent='&#9654; Resume';btn.style.background='rgba(220,38,38,0.1)';btn.style.borderColor='rgba(220,38,38,0.3)';btn.style.color='#F87171';}
+      campaignIsPaused=true;if(btn){btn.textContent='▶ Resume';btn.style.background='rgba(220,38,38,0.1)';btn.style.borderColor='rgba(220,38,38,0.3)';btn.style.color='#F87171';}
     }else{
       campaignIsPaused=false;if(btn){btn.textContent='⏸ Pause';btn.style.background='';btn.style.borderColor='';btn.style.color='';}
     }
@@ -2204,7 +2216,7 @@ async function checkCampaignPauseStatus(){
 }
 
 // ═══════════════════════════════════════════════════════════
-// BULK STATUS UPDATE
+// BULK STATUS UPDATE (wired to fox-hunt celebration)
 // ═══════════════════════════════════════════════════════════
 async function bulkUpdateStatus(){
   if(!selectedLeads.size){ntf('Select leads first','error');return;}
@@ -2214,16 +2226,16 @@ async function bulkUpdateStatus(){
   try{
     const r=await fetch('/leads/bulk-status-update',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({lead_ids:Array.from(selectedLeads),status})}).then(r=>r.json());
-    ntf('✓ '+r.message);selectedLeads=new Set();updateBulkUI();loadAllLeads();loadDash();
+    ntf('✓ '+r.message);
+    if(status==='responded' && r.updated>0){
+      setTimeout(()=>launchFoxHunt(r.updated),300);
+    }
+    selectedLeads=new Set();updateBulkUI();loadAllLeads();loadDash();
   }catch(e){ntf('Update failed','error');}
 }
 
-// Show/hide bulk action buttons when leads selected
-const _origUpdateBulkUI=updateBulkUI;
-
-
 // ═══════════════════════════════════════════════════════════
-// BASE URL SAVE IN EMAIL SETTINGS
+// BASE URL LOAD IN EMAIL SETTINGS
 // ═══════════════════════════════════════════════════════════
 async function loadEmailSettingsExtended(){
   try{
@@ -2233,18 +2245,53 @@ async function loadEmailSettingsExtended(){
   }catch(e){}
 }
 
-// Hook into saveEmailSettings to also save base_url
-const _origSaveEmailSettings=saveEmailSettings;
-
-
 // ═══════════════════════════════════════════════════════════
-// SAVE AS TEMPLATE BUTTON in email modal
+// BULK SEND SEQUENCE HELPERS (email-flow page)
 // ═══════════════════════════════════════════════════════════
-// This is called from the email modal — add button inline
+let seqEmailType='cold';
+function selectSeqType(type,btn){
+  seqEmailType=type;
+  document.querySelectorAll('#pg-email-flow .etab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+  loadSeqLeadCount();
+}
+async function popSeqCampaigns(){
+  try{const cs=await fetch('/campaigns').then(r=>r.json());const s=document.getElementById('seq-camp-sel');if(!s)return;s.innerHTML='<option value="">All Campaigns</option>'+cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');}catch(e){}
+}
+async function loadSeqLeadCount(){
+  const campId=document.getElementById('seq-camp-sel')?.value||'';
+  const statusFilter=document.getElementById('seq-status-sel')?.value||'';
+  const el=document.getElementById('seq-eligible-count');
+  if(!el)return;
+  try{
+    let url='/leads';if(campId)url+='?campaign_id='+campId;
+    let leads=await fetch(url).then(r=>r.json());
+    leads=leads.filter(l=>l.email&&l.confidence_score>=70&&!['rejected','unsubscribed'].includes(l.status));
+    if(statusFilter)leads=leads.filter(l=>l.status===statusFilter);
+    el.textContent=`${leads.length} eligible lead${leads.length!==1?'s':''} for this send`;
+  }catch(e){el.textContent='';}
+}
+async function executeSeqBulkSend(){
+  const campId=document.getElementById('seq-camp-sel')?.value||'';
+  const scenario=document.getElementById('seq-scenario')?.value?.trim()||'';
+  const btn=document.getElementById('seq-bulk-btn');
+  if(!campId){ntf('Select a campaign for bulk send','error');return;}
+  btn.textContent='Sending...';btn.disabled=true;
+  document.getElementById('seq-bulk-progress').style.display='block';
+  document.getElementById('seq-bulk-status').textContent='Generating and sending emails...';
+  try{
+    const r=await fetch('/campaigns/'+campId+'/bulk-send',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({campaign_id:parseInt(campId),email_type:seqEmailType,scenario:scenario||null})}).then(r=>r.json());
+    document.getElementById('seq-bulk-bar').style.width='100%';
+    ntf(r.success?'✓ '+r.message:r.message||'Failed',r.success?'success':'error');
+    document.getElementById('seq-bulk-status').textContent=r.message||'';
+    loadDash();
+  }catch(e){ntf('Bulk send failed','error');}
+  btn.textContent='⚡ Send to All Eligible →';btn.disabled=false;
+}
 
 loadDash();
 loadCurrentUser();
-setInterval(()=>{if(document.visibilityState==='visible'&&document.getElementById('scan-replies-btn'))scanReplies();},30*60*1000);
 
 async function loadTeamMembers(){
   const el=document.getElementById('team-list');if(!el)return;
@@ -2262,46 +2309,6 @@ async function toggleTeamRole(userId,newRole,name){
 async function removeTeamMember(userId,name){
   if(!confirm(`Remove ${name} from the team?`))return;
   try{const r=await fetch(`/auth/team/${userId}`,{method:'DELETE'}).then(r=>r.json());if(r.success){ntf(`✓ ${name} removed`);loadTeamMembers();}else ntf(r.message||'Could not remove','error');}catch(e){ntf('Error','error');}
-}
-function launchFoxHunt(leadName){
-  const ex=document.getElementById('fox-hunt-popup');if(ex)ex.remove();
-  if(!document.getElementById('fox-pop-style')){const s=document.createElement('style');s.id='fox-pop-style';s.textContent='@keyframes foxPopIn{0%{transform:translate(-50%,-50%) scale(0);opacity:0}60%{transform:translate(-50%,-50%) scale(1.08)}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}@keyframes foxPopOut{0%{opacity:1}100%{transform:translate(-50%,-50%) scale(.8);opacity:0}}';document.head.appendChild(s);}
-  const p=document.createElement('div');p.id='fox-hunt-popup';
-  p.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:999999;background:var(--bg2,#2C1A0E);border:2px solid var(--accent,#D4895A);border-radius:20px;padding:32px 40px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.6);min-width:280px;animation:foxPopIn .4s cubic-bezier(.34,1.56,.64,1) forwards;';
-  p.innerHTML='<div style="font-size:56px;margin-bottom:8px">🦊</div><div style="font-family:serif;font-size:26px;color:var(--accent,#D4895A);margin-bottom:6px">Lead Caught!</div><div style="font-size:13px;color:var(--t2);font-weight:600">'+(leadName||'They responded!')+'</div><div style="font-size:11px;color:var(--t3);margin-top:8px">Flo is on fire 🔥</div>';
-  document.body.appendChild(p);
-  p.onclick=()=>p.remove();
-  setTimeout(()=>{p.style.animation='foxPopOut .3s ease forwards';setTimeout(()=>p.remove(),300);},2500);
-  const tag=document.getElementById('fox-tag');if(tag){tag.textContent='got one! 🎉';setTimeout(()=>tag.textContent='on the hunt',3000);}
-}
-function openVideoEmbed(){
-  if(!curLead){ntf('Open a lead email first','error');return;}
-  const ex=document.getElementById('mo-video');if(ex)ex.remove();
-  const mo=document.createElement('div');mo.id='mo-video';mo.className='mo show';
-  mo.innerHTML=`<div class="modal" style="width:460px;max-width:95vw"><div class="mh"><div class="mt">🎥 Embed Video / Loom</div><button class="mcl" onclick="document.getElementById('mo-video').remove()">&#215;</button></div><div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px;background:var(--ib);border-radius:8px">Paste a Loom, YouTube, or any video URL.</div><div class="fm" style="margin-bottom:12px"><label>Video URL</label><input type="url" id="vid-url" placeholder="https://www.loom.com/share/..." style="width:100%"></div><div class="fm" style="margin-bottom:14px"><label>Caption (optional)</label><input type="text" id="vid-caption" placeholder="Watch our 2-min product demo →" style="width:100%" value="Watch our 2-min product demo →"></div><div style="display:flex;gap:8px"><button class="btn bp" style="flex:1" onclick="insertVideoEmbed()">Insert into Email →</button><button class="btn bo" onclick="document.getElementById('mo-video').remove()">Cancel</button></div></div>`;
-  mo.onclick=e=>{if(e.target===mo)mo.remove();};document.body.appendChild(mo);
-  setTimeout(()=>document.getElementById('vid-url')?.focus(),100);
-}
-function insertVideoEmbed(){
-  const url=document.getElementById('vid-url')?.value?.trim();
-  const caption=document.getElementById('vid-caption')?.value?.trim()||'Watch video →';
-  if(!url){ntf('Enter a video URL','error');return;}
-  const bodyEl=document.getElementById('em-body');
-  if(!bodyEl){ntf('Generate an email first','error');return;}
-  bodyEl.value=bodyEl.value+`
-
-🎥 ${caption}
-${url}`;
-  document.getElementById('mo-video')?.remove();
-  ntf('✓ Video link added to email');
-}
-async function enrichCompany(companyId,companyName){
-  ntf('Enriching '+companyName+'...','warning');
-  try{
-    const r=await fetch('/companies/'+companyId+'/enrich',{method:'PATCH'}).then(r=>r.json());
-    if(r.success){ntf('✓ '+companyName+' enriched'+(r.updated&&r.updated.length?' - updated: '+r.updated.join(', '):''));if(curComp)loadContacts(curComp);}
-    else ntf('Could not enrich','error');
-  }catch(e){ntf('Enrich failed','error');}
 }
 </script>
 </body>
