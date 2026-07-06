@@ -196,36 +196,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
 .fox-catch-title{font-family:'DM Serif Display',serif;font-size:22px;color:#F2E0C8;margin-bottom:4px;}
 .fox-catch-sub{font-size:12px;color:#D4895A;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
-function openVideoEmbed(){
-  if(!curLead){ntf("Open a lead email first","error");return;}
-  const ex=document.getElementById("mo-video");if(ex)ex.remove();
-  const mo=document.createElement("div");mo.id="mo-video";mo.className="mo show";
-  mo.innerHTML=`<div class="modal" style="width:460px;max-width:95vw">
-    <div class="mh"><div class="mt">🎥 Embed Video / Loom</div><button class="mcl" onclick="document.getElementById('mo-video').remove()">&#215;</button></div>
-    <div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px;background:var(--ib);border-radius:8px">Paste a Loom, YouTube, or any video URL.</div>
-    <div class="fm" style="margin-bottom:12px"><label>Video URL</label><input type="url" id="vid-url" placeholder="https://www.loom.com/share/..." style="width:100%"></div>
-    <div class="fm" style="margin-bottom:14px"><label>Caption (optional)</label><input type="text" id="vid-caption" placeholder="Watch our 2-min product demo →" style="width:100%" value="Watch our 2-min product demo →"></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn bp" style="flex:1" onclick="insertVideoEmbed()">Insert into Email →</button>
-      <button class="btn bo" onclick="document.getElementById('mo-video').remove()">Cancel</button>
-    </div>
-  </div>`;
-  mo.onclick=e=>{if(e.target===mo)mo.remove();};
-  document.body.appendChild(mo);
-  setTimeout(()=>document.getElementById("vid-url")?.focus(),100);
-}
-function insertVideoEmbed(){
-  const url=document.getElementById("vid-url")?.value?.trim();
-  const caption=document.getElementById("vid-caption")?.value?.trim()||"Watch video →";
-  if(!url){ntf("Enter a video URL","error");return;}
-  const bodyEl=document.getElementById("em-body");
-  if(!bodyEl){ntf("Generate an email first","error");return;}
-  bodyEl.value=bodyEl.value+`\n\n🎥 ${caption}\n${url}`;
-  document.getElementById("mo-video")?.remove();
-  ntf("✓ Video link added to email");
-}
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="glow g1"></div><div class="glow g2"></div>
@@ -361,8 +332,8 @@ function insertVideoEmbed(){
     <div class="fm"><label>Min Company Size</label><input type="number" id="cn-min" value="50"></div>
     <div class="fm"><label>Max Company Size</label><input type="number" id="cn-max" value="10000"></div>
     <div class="fm"><label>Minimum Salary (USD/year)</label><input type="number" id="cn-sal" value="80000"><div class="sal-sug" id="sal-suggest" style="display:none">&#9670; <span id="sal-text"></span></div></div>
+    <div class="fm"><label>Industry Focus (optional)</label><input type="text" id="cn-industry" placeholder="e.g. Staffing &amp; Recruiting" value="Staffing &amp; Recruiting"><div style="font-size:11px;color:var(--t3);margin-top:3px">Narrows company search to this industry</div></div>
     <div class="fm"><label>Exclude Company Types</label><input type="text" id="cn-excl" value="Staffing,Recruiting,Talent,Consultancy,IT Consultancy,Human Resources Services,Technology Information and Media,University,Non-profit,NGO"></div>
-    <div class="fm"><label>Industry Focus (optional)</label><input type="text" id="cn-industry" placeholder="e.g. Staffing & Recruiting, SaaS, Healthcare" value="Staffing & Recruiting"><div style="font-size:11px;color:var(--t3);margin-top:3px">Narrows company search to this industry</div></div>
     <div class="fm full" style="flex-direction:row;gap:24px;flex-wrap:wrap;align-items:center">
       <label class="crow"><input type="checkbox" id="cn-int" checked> Exclude Internships</label>
       <label class="crow"><input type="checkbox" id="cn-rem" checked> Exclude Remote-only</label>
@@ -673,7 +644,6 @@ function insertVideoEmbed(){
       </div>
       <div class="fm">
         <label>Your LeadFlow URL (for unsubscribe links)</label>
-        <input type="text" id="set-baseurl2" oninput="const m=document.getElementById('set-baseurl');if(m)m.value=this.value;" placeholder="http://localhost:8000" value="http://localhost:8000">
         <div style="font-size:11px;color:var(--t3);margin-top:4px">Change to your Railway URL when deployed</div>
       </div>
       <div class="fm">
@@ -703,7 +673,6 @@ function insertVideoEmbed(){
       </div>
       <div class="fm">
         <label>Calendly / Meeting Link</label>
-        <input type="text" id="set-calendly2" oninput="const m=document.getElementById('set-calendly');if(m)m.value=this.value;" placeholder="https://calendly.com/yourname/15min">
         <div style="font-size:11px;color:var(--t3);margin-top:3px">Auto-appended to every email CTA</div>
       </div>
     </div>
@@ -735,8 +704,6 @@ function insertVideoEmbed(){
   </div>
 </div>
 
-
-
   <!-- TEAM MEMBERS SECTION -->
   <div class="card" style="margin-top:20px">
     <div class="ch" style="margin-bottom:16px">
@@ -745,6 +712,7 @@ function insertVideoEmbed(){
     </div>
     <div id="team-list"><div class="ld">Loading...</div></div>
   </div>
+</div>
 
 <!-- INBOX PAGE -->
 <div class="pg" id="pg-inbox">
@@ -936,8 +904,8 @@ function insertVideoEmbed(){
       <div class="fm"><label>Min Company Size</label><input type="number" id="ef-min"></div>
       <div class="fm"><label>Max Company Size</label><input type="number" id="ef-max"></div>
       <div class="fm"><label>Min Salary (USD)</label><input type="number" id="ef-sal"><div class="sal-sug" id="ef-sal-sug" style="display:none">&#9670; <span id="ef-sal-text"></span></div></div>
+      <div class="fm"><label>Industry Focus</label><input type="text" id="ef-industry" placeholder="e.g. Staffing &amp; Recruiting"></div>
       <div class="fm"><label>Exclude Types</label><input type="text" id="ef-excl"></div>
-      <div class="fm"><label>Industry Focus</label><input type="text" id="ef-industry" placeholder="e.g. Staffing & Recruiting"></div>
       <div class="fm full" style="flex-direction:row;gap:20px;flex-wrap:wrap;align-items:center">
         <label class="crow"><input type="checkbox" id="ef-int"> Exclude Internships</label>
         <label class="crow"><input type="checkbox" id="ef-rem"> Exclude Remote</label>
@@ -995,7 +963,7 @@ function sp(p,el){
   if(p==='leads'){loadAllLeads();popCampFl();}
   if(p==='email-flow'){loadEmailFlowLeads();popSeqCampaigns();loadSeqLeadCount();}
   if(p==='followup'){loadFollowupQueue();popCampFq();}
-  if(p==='settings'){loadEmailSettings();loadDeliverabilitySettings();loadEmailSettingsExtended();loadTeamMembers();}
+  if(p==='settings'){loadEmailSettings();loadDeliverabilitySettings();loadEmailSettingsExtended();}
   if(p==='templates'){loadTemplates();}
   if(p==='email-log'){popLogCamps();loadEmailLog();}
   if(p==='inbox'){popInboxCamps();loadInbox();}
@@ -1196,7 +1164,7 @@ async function loadContacts(cid){
       <td>${bdg(l.status)}${l.cooldown_until?`<div style="font-size:10px;color:#a78bfa;margin-top:2px">Resurfaces ${l.cooldown_until}</div>`:''}</td>
       <td style="display:flex;gap:5px;flex-wrap:wrap">
         <button class="btn bp xs" onclick="openEmail(${l.id})">Email</button>
-        <button class="btn bo xs" onclick="enrichCompany(co.id,co.name)" style="font-size:10px">✦ Enrich</button><button class="btn bo xs" onclick="openLinkedIn('${l.linkedin_url||''}','${(l.full_name||'').replace(/'/g,"\\'")}','${(l.company||'').replace(/'/g,"\\'")}')">in</button>
+        <button class="btn bo xs" onclick="openLinkedIn('${l.linkedin_url||''}','${(l.full_name||'').replace(/'/g,"\\'")}','${(l.company||'').replace(/'/g,"\\'")}')">in</button>
         <button class="btn bo xs" onclick="openEditContact(${l.id})">&#9998; Edit</button>
         <button class="btn bw xs" onclick="verLead(${l.id})">&#9889; Verify</button>
         <button class="btn bd xs" onclick="delLead(${l.id})">&#10005;</button>
@@ -1309,7 +1277,7 @@ async function genEm(type,btn){
 
 function copyEmail(){const subject=document.getElementById('em-subject')?.value||'',body=document.getElementById('em-body')?.value||'';const full=`Subject: ${subject}\n\n${body}`;navigator.clipboard.writeText(full).then(()=>ntf('✓ Copied')).catch(()=>{const ta=document.createElement('textarea');ta.value=full;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();ntf('✓ Copied');});}
 
-async function updSt(status){if(!curLead)return;await fetch('/leads/'+curLead+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});const m={responded:'✓ Responded',soft_rejection:'Soft Rejection noted',rejected:'Rejected'};ntf(m[status]||'Updated');loadDash();cmo('mo-email');if(curComp)loadContacts(curComp);if(status==='responded'){const name=curLeadData?.full_name||'Lead';setTimeout(()=>launchFoxHunt(name),200);}}
+async function updSt(status){if(!curLead)return;const _name=(curLeadData&&curLeadData.full_name)||'Lead';await fetch('/leads/'+curLead+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});const m={responded:'✓ Responded',soft_rejection:'Soft Rejection noted',rejected:'Rejected'};ntf(m[status]||'Updated');loadDash();cmo('mo-email');if(curComp)loadContacts(curComp);if(status==='responded'){setTimeout(()=>launchFoxHunt(_name),300);}}
 
 async function loadEmailFlowLeads(){try{const leads=await fetch('/leads').then(r=>r.json());const sel=document.getElementById('ef-lead-sel');sel.innerHTML='<option value="">Choose a lead</option>'+leads.slice(0,20).map(l=>`<option value="${l.id}">${l.full_name} @ ${l.company}</option>`).join('');}catch(e){}}
 async function genEmailFromFlow(){const id=document.getElementById('ef-lead-sel').value;if(!id){ntf('Select a lead','error');return;}const preview=document.getElementById('ef-preview');preview.innerHTML='<div class="ld">Generating...</div>';try{const d=await fetch('/generate-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:parseInt(id),email_type:'cold'})}).then(r=>r.json());preview.innerHTML=`<div class="ep"><div class="esb">Subject: ${d.subject}</div><div style="font-size:13px;line-height:1.8;color:var(--t2);white-space:pre-wrap">${d.body}</div></div><div style="margin-top:10px"><button class="btn bo sm" onclick="openEmail(${id})">Open Full Generator</button></div>`;}catch(e){preview.innerHTML='<div style="color:var(--red);font-size:12px">Error</div>';}}
@@ -1318,7 +1286,7 @@ async function loadAllLeads(){
   const cid=document.getElementById('fl-c')?.value,status=document.getElementById('fl-s')?.value;
   let url='/leads';if(cid)url+='?campaign_id='+cid;
   try{let leads=await fetch(url).then(r=>r.json());if(status)leads=leads.filter(l=>l.status===status);const tb=document.getElementById('leads-tb');if(!leads.length){tb.innerHTML=em(9,'&#8857;','No leads match filters.');return;}selectedLeads=new Set();updateBulkUI();
-    tb.innerHTML=leads.map(l=>`<tr><td><input type="checkbox" class="lead-chk" data-id="${l.id}" onchange="toggleLeadSel(${l.id},this.checked)" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer"></td><td><b>${l.full_name||'—'}</b></td><td style="font-size:11px;color:var(--t3)">${l.title||'—'}</td><td>${l.company||'—'}</td><td style="font-size:11.5px">${l.email||'<span style="color:var(--t3)">—</span>'}</td><td>${l.email_verified?'<span class="bdg bv">✓</span>':'<span class="bdg buv">—</span>'}</td><td>${l.campaign_name?`<span class="cp">${l.campaign_name}</span>`:'<span style="color:var(--t3)">—</span>'}</td><td>${bdg(l.status)}</td><td style="display:flex;gap:5px"><button class="btn bp xs" onclick="openEmail(${l.id})">Email</button><button class="btn bo xs" onclick="enrichCompany(co.id,co.name)" style="font-size:10px">✦ Enrich</button><button class="btn bo xs" onclick="openLinkedIn('${l.linkedin_url||''}','${(l.full_name||'').replace(/'/g,"\\'")}','${(l.company||'').replace(/'/g,"\\'")}')">in</button><button class="btn bd xs" onclick="delLead(${l.id})">&#10005;</button></td></tr>`).join('');}catch(e){}}
+    tb.innerHTML=leads.map(l=>`<tr><td><input type="checkbox" class="lead-chk" data-id="${l.id}" onchange="toggleLeadSel(${l.id},this.checked)" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer"></td><td><b>${l.full_name||'—'}</b></td><td style="font-size:11px;color:var(--t3)">${l.title||'—'}</td><td>${l.company||'—'}</td><td style="font-size:11.5px">${l.email||'<span style="color:var(--t3)">—</span>'}</td><td>${l.email_verified?'<span class="bdg bv">✓</span>':'<span class="bdg buv">—</span>'}</td><td>${l.campaign_name?`<span class="cp">${l.campaign_name}</span>`:'<span style="color:var(--t3)">—</span>'}</td><td>${bdg(l.status)}</td><td style="display:flex;gap:5px"><button class="btn bp xs" onclick="openEmail(${l.id})">Email</button><button class="btn bo xs" onclick="openLinkedIn('${l.linkedin_url||''}','${(l.full_name||'').replace(/'/g,"\\'")}','${(l.company||'').replace(/'/g,"\\'")}')">in</button><button class="btn bd xs" onclick="delLead(${l.id})">&#10005;</button></td></tr>`).join('');}catch(e){}}
 
 async function popCampFl(){try{const cs=await fetch('/campaigns').then(r=>r.json());const s=document.getElementById('fl-c');if(!s)return;s.innerHTML='<option value="">All Campaigns</option>'+cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');}catch(e){}}
 async function popCampFq(){try{const cs=await fetch('/campaigns').then(r=>r.json());const s=document.getElementById('fq-camp');if(!s)return;s.innerHTML='<option value="">All Campaigns</option>'+cs.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');}catch(e){}}
@@ -1338,7 +1306,7 @@ function dlCSV(cid=null){let url='/leads/export/csv';if(cid)url+='?campaign_id='
 let selectedLeads=new Set();
 function toggleLeadSel(id,checked){if(checked)selectedLeads.add(id);else selectedLeads.delete(id);updateBulkUI();}
 function toggleAllLeads(checked){document.querySelectorAll('.lead-chk').forEach(cb=>{cb.checked=checked;const id=parseInt(cb.dataset.id);if(checked)selectedLeads.add(id);else selectedLeads.delete(id);});updateBulkUI();}
-function updateBulkUI(){const count=selectedLeads.size;const countEl=document.getElementById('sel-leads-count');const bulkBtn=document.getElementById('bulk-del-btn');if(countEl)countEl.textContent=count>0?count+' selected':'0 selected';if(bulkBtn)bulkBtn.style.display=count>0?'inline-flex':'none';const sa=document.getElementById('sel-all-leads');if(sa){const total=document.querySelectorAll('.lead-chk').length;sa.checked=total>0&&count===total;sa.indeterminate=count>0&&count<total;}}
+function updateBulkUI(){const count=selectedLeads.size;const countEl=document.getElementById('sel-leads-count');const bulkBtn=document.getElementById('bulk-del-btn');if(countEl)countEl.textContent=count>0?count+' selected':'0 selected';if(bulkBtn)bulkBtn.style.display=count>0?'inline-flex':'none';const statusSel=document.getElementById('bulk-status-sel');const statusBtn=document.getElementById('bulk-status-btn');if(statusSel)statusSel.style.display=count>0?'inline-block':'none';if(statusBtn)statusBtn.style.display=count>0?'inline-flex':'none';const sa=document.getElementById('sel-all-leads');if(sa){const total=document.querySelectorAll('.lead-chk').length;sa.checked=total>0&&count===total;sa.indeterminate=count>0&&count<total;}}
 async function bulkDeleteLeads(){if(!selectedLeads.size)return;if(!confirm(`Delete ${selectedLeads.size} selected leads?`))return;ntf('Deleting...','warning');let deleted=0;for(const id of Array.from(selectedLeads)){try{await fetch('/leads/'+id,{method:'DELETE'});deleted++;}catch(e){}}selectedLeads=new Set();ntf(`✓ ${deleted} leads deleted`);loadAllLeads();loadDash();}
 async function deleteAllLeads(){const leads=await fetch('/leads').then(r=>r.json());if(!leads.length){ntf('No leads','error');return;}if(!confirm(`Delete ALL ${leads.length} leads?`))return;ntf('Deleting all...','warning');let deleted=0;for(const l of leads){try{await fetch('/leads/'+l.id,{method:'DELETE'});deleted++;}catch(e){}}ntf(`✓ All ${deleted} deleted`);loadAllLeads();loadDash();}
 
@@ -1362,23 +1330,7 @@ async function saveEditContact(){const id=document.getElementById('ec-id').value
 const foxTags=['on the hunt','finding leads','sniffing trails','ready to pounce'];let foxTagIdx=0;
 setInterval(()=>{foxTagIdx=(foxTagIdx+1)%foxTags.length;const el=document.getElementById('fox-tag');if(el){el.style.opacity='0';setTimeout(()=>{el.textContent=foxTags[foxTagIdx];el.style.opacity='1';},300);}},4000);
 function foxBark(){const el=document.getElementById('fox-tag');if(el){el.textContent='on it!';setTimeout(()=>{el.textContent=foxTags[foxTagIdx];},1500);}}
-function launchFoxHunt(leadName){
-  const ex=document.getElementById('fox-hunt-popup');if(ex)ex.remove();
-  if(!document.getElementById('fox-pop-style')){
-    const s=document.createElement('style');s.id='fox-pop-style';
-    s.textContent='@keyframes foxPopIn{0%{transform:translate(-50%,-50%) scale(0);opacity:0}60%{transform:translate(-50%,-50%) scale(1.08)}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}@keyframes foxPopOut{0%{opacity:1}100%{transform:translate(-50%,-50%) scale(.8);opacity:0}}';
-    document.head.appendChild(s);
-  }
-  const p=document.createElement('div');p.id='fox-hunt-popup';
-  p.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:999999;background:var(--bg2,#2C1A0E);border:2px solid var(--accent,#D4895A);border-radius:20px;padding:32px 40px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.6);min-width:280px;animation:foxPopIn .4s cubic-bezier(.34,1.56,.64,1) forwards;';
-  p.innerHTML='<div style="font-size:56px;margin-bottom:8px">🦊</div><div style="font-family:serif;font-size:26px;color:var(--accent,#D4895A);margin-bottom:6px">Lead Caught!</div><div style="font-size:13px;color:var(--t2);font-weight:600">'+(leadName||'They responded!')+'</div><div style="font-size:11px;color:var(--t3);margin-top:8px">Flo is on fire 🔥</div>';
-  document.body.appendChild(p);
-  p.onclick=()=>p.remove();
-  setTimeout(()=>{p.style.animation='foxPopOut .3s ease forwards';setTimeout(()=>p.remove(),300);},2500);
-  const tag=document.getElementById('fox-tag');if(tag){tag.textContent='got one! 🎉';setTimeout(()=>tag.textContent='on the hunt',3000);}
-}
-// OLD fox runner replaced - do not restore:
-function _old_launchFoxHunt(leadName){const fox=document.createElement('div');fox.className='fox-hunter';fox.innerHTML=`<svg viewBox="0 0 160 80" width="160" height="80"><path d="M30 44 Q10 36 14 52 Q16 64 30 58 Q38 54 36 44Z" fill="#D4895A"/><path d="M36 34 Q36 60 80 60 Q124 60 124 34 Q116 24 80 22 Q44 24 36 34Z" fill="#D4895A"/><ellipse cx="80" cy="50" rx="26" ry="12" fill="#F2E0C8"/><ellipse cx="114" cy="27" rx="4" ry="3.5" fill="#2C1A0E"/><g class="fox-leg-fl"><rect x="104" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g><g class="fox-leg-bl"><rect x="52" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g><g class="fox-leg-fr"><rect x="90" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g><g class="fox-leg-br"><rect x="64" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g></svg>`;document.body.appendChild(fox);setTimeout(()=>{const badge=document.createElement('div');badge.className='fox-catch';badge.innerHTML=`<div class="fox-catch-title">Lead Caught!</div><div class="fox-catch-sub">${leadName||'They responded!'}</div>`;document.body.appendChild(badge);setTimeout(()=>badge.remove(),1400);},900);setTimeout(()=>fox.remove(),2400);const tag=document.getElementById('fox-tag');if(tag){tag.textContent='got one!';setTimeout(()=>{tag.textContent='on the hunt';},3000);}}
+function launchFoxHunt(leadName){const fox=document.createElement('div');fox.className='fox-hunter';fox.innerHTML=`<svg viewBox="0 0 160 80" width="160" height="80"><path d="M30 44 Q10 36 14 52 Q16 64 30 58 Q38 54 36 44Z" fill="#D4895A"/><path d="M36 34 Q36 60 80 60 Q124 60 124 34 Q116 24 80 22 Q44 24 36 34Z" fill="#D4895A"/><ellipse cx="80" cy="50" rx="26" ry="12" fill="#F2E0C8"/><ellipse cx="114" cy="27" rx="4" ry="3.5" fill="#2C1A0E"/><g class="fox-leg-fl"><rect x="104" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g><g class="fox-leg-bl"><rect x="52" y="56" width="8" height="18" rx="4" fill="#D4895A"/></g><g class="fox-leg-fr"><rect x="90" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g><g class="fox-leg-br"><rect x="64" y="56" width="8" height="18" rx="4" fill="#B85A20"/></g></svg>`;document.body.appendChild(fox);setTimeout(()=>{const badge=document.createElement('div');badge.className='fox-catch';badge.innerHTML=`<div class="fox-catch-title">Lead Caught!</div><div class="fox-catch-sub">${leadName||'They responded!'}</div>`;document.body.appendChild(badge);setTimeout(()=>badge.remove(),1400);},900);setTimeout(()=>fox.remove(),2400);const tag=document.getElementById('fox-tag');if(tag){tag.textContent='got one!';setTimeout(()=>{tag.textContent='on the hunt';},3000);}}
 
 function doLogout(){fetch('/auth/logout',{method:'POST'}).then(()=>window.location.href='/login');}
 function loadCurrentUser(){fetch('/auth/me').then(r=>r.json()).then(u=>{const el=document.getElementById('sidebar-user');if(el&&u.username)el.textContent='Signed in as '+u.username;}).catch(()=>{});}
@@ -2301,23 +2253,55 @@ async function loadTeamMembers(){
     const r=await fetch('/auth/team').then(r=>r.json());
     const users=r.users||[];
     if(!users.length){el.innerHTML='<div style="color:var(--t3);font-size:13px;padding:10px">No team members yet.</div>';return;}
-    el.innerHTML=`<table style="width:100%;border-collapse:collapse"><thead><tr style="font-size:11px;color:var(--t3);text-transform:uppercase"><th style="text-align:left;padding:8px 12px">Username</th><th style="text-align:left;padding:8px 12px">Role</th><th style="text-align:left;padding:8px 12px">Joined</th><th style="text-align:left;padding:8px 12px">Access</th><th style="padding:8px 12px"></th></tr></thead><tbody>${users.map(u=>`<tr style="border-top:1px solid var(--ic)"><td style="padding:10px 12px"><b>${u.username||u.email||'—'}</b></td><td style="padding:10px 12px"><span class="bdg ${u.role==='admin'?'bv':'buv'}">${u.role==='admin'?'⚡ Admin':'● Member'}</span></td><td style="padding:10px 12px;font-size:12px;color:var(--t3)">${u.created_at?new Date(u.created_at).toLocaleDateString('en',{month:'short',day:'numeric',year:'numeric'}):'—'}</td><td style="padding:10px 12px;font-size:12px;color:var(--t3)">${u.role==='admin'?'Full access':'Own campaigns'}</td><td style="padding:10px 12px;display:flex;gap:6px"><button class="btn bw xs" onclick="toggleTeamRole(${u.id},'${u.role==='admin'?'member':'admin'}','${(u.username||u.email||'').replace(/'/g,'')}')">${u.role==='admin'?'↓ Make Member':'↑ Make Admin'}</button><button class="btn bd xs" onclick="removeTeamMember(${u.id},'${(u.username||u.email||'').replace(/'/g,'')}')">✕ Remove</button></td></tr>`).join('')}</tbody></table><div style="margin-top:8px;font-size:11px;color:var(--t3)">${users.length} member${users.length!==1?'s':''} total</div>`;
+    el.innerHTML=`<table style="width:100%;border-collapse:collapse"><thead><tr style="font-size:11px;color:var(--t3);text-transform:uppercase"><th style="text-align:left;padding:8px 12px">Username</th><th style="text-align:left;padding:8px 12px">Role</th><th style="text-align:left;padding:8px 12px">Joined</th><th style="text-align:left;padding:8px 12px">Access</th><th></th></tr></thead><tbody>${users.map(u=>`<tr style="border-top:1px solid var(--ic)"><td style="padding:10px 12px"><b>${u.username||u.email||'—'}</b></td><td style="padding:10px 12px"><span class="bdg ${u.role==='admin'?'bv':'buv'}">${u.role==='admin'?'⚡ Admin':'● Member'}</span></td><td style="padding:10px 12px;font-size:12px;color:var(--t3)">${u.created_at?new Date(u.created_at).toLocaleDateString('en',{month:'short',day:'numeric',year:'numeric'}):'—'}</td><td style="padding:10px 12px;font-size:12px;color:var(--t3)">${u.role==='admin'?'Full access':'Own campaigns'}</td><td style="padding:10px 12px;display:flex;gap:6px"><button class="btn bw xs" onclick="toggleTeamRole(${u.id},'${u.role==='admin'?'member':'admin'}','${(u.username||u.email||'').replace(/'/g,'')}')">${u.role==='admin'?'↓ Make Member':'↑ Make Admin'}</button><button class="btn bd xs" onclick="removeTeamMember(${u.id},'${(u.username||u.email||'').replace(/'/g,'')}')">✕ Remove</button></td></tr>`).join('')}</tbody></table><div style="margin-top:8px;font-size:11px;color:var(--t3)">${users.length} member${users.length!==1?'s':''} total</div>`;
   }catch(e){el.innerHTML='<div style="color:#F87171;font-size:12px;padding:10px">Could not load team members.</div>';}
 }
 async function toggleTeamRole(userId,newRole,name){
-  try{
-    const r=await fetch(`/auth/team/${userId}/role`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:newRole})}).then(r=>r.json());
-    if(r.success){ntf(`✓ ${name} is now ${newRole}`);loadTeamMembers();}
-    else ntf(r.message||'Could not update role','error');
-  }catch(e){ntf('Error','error');}
+  try{const r=await fetch(`/auth/team/${userId}/role`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:newRole})}).then(r=>r.json());if(r.success){ntf(`✓ ${name} is now ${newRole}`);loadTeamMembers();}else ntf(r.message||'Could not update role','error');}catch(e){ntf('Error','error');}
 }
 async function removeTeamMember(userId,name){
   if(!confirm(`Remove ${name} from the team?`))return;
+  try{const r=await fetch(`/auth/team/${userId}`,{method:'DELETE'}).then(r=>r.json());if(r.success){ntf(`✓ ${name} removed`);loadTeamMembers();}else ntf(r.message||'Could not remove','error');}catch(e){ntf('Error','error');}
+}
+function launchFoxHunt(leadName){
+  const ex=document.getElementById('fox-hunt-popup');if(ex)ex.remove();
+  if(!document.getElementById('fox-pop-style')){const s=document.createElement('style');s.id='fox-pop-style';s.textContent='@keyframes foxPopIn{0%{transform:translate(-50%,-50%) scale(0);opacity:0}60%{transform:translate(-50%,-50%) scale(1.08)}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}@keyframes foxPopOut{0%{opacity:1}100%{transform:translate(-50%,-50%) scale(.8);opacity:0}}';document.head.appendChild(s);}
+  const p=document.createElement('div');p.id='fox-hunt-popup';
+  p.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:999999;background:var(--bg2,#2C1A0E);border:2px solid var(--accent,#D4895A);border-radius:20px;padding:32px 40px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.6);min-width:280px;animation:foxPopIn .4s cubic-bezier(.34,1.56,.64,1) forwards;';
+  p.innerHTML='<div style="font-size:56px;margin-bottom:8px">🦊</div><div style="font-family:serif;font-size:26px;color:var(--accent,#D4895A);margin-bottom:6px">Lead Caught!</div><div style="font-size:13px;color:var(--t2);font-weight:600">'+(leadName||'They responded!')+'</div><div style="font-size:11px;color:var(--t3);margin-top:8px">Flo is on fire 🔥</div>';
+  document.body.appendChild(p);
+  p.onclick=()=>p.remove();
+  setTimeout(()=>{p.style.animation='foxPopOut .3s ease forwards';setTimeout(()=>p.remove(),300);},2500);
+  const tag=document.getElementById('fox-tag');if(tag){tag.textContent='got one! 🎉';setTimeout(()=>tag.textContent='on the hunt',3000);}
+}
+function openVideoEmbed(){
+  if(!curLead){ntf('Open a lead email first','error');return;}
+  const ex=document.getElementById('mo-video');if(ex)ex.remove();
+  const mo=document.createElement('div');mo.id='mo-video';mo.className='mo show';
+  mo.innerHTML=`<div class="modal" style="width:460px;max-width:95vw"><div class="mh"><div class="mt">🎥 Embed Video / Loom</div><button class="mcl" onclick="document.getElementById('mo-video').remove()">&#215;</button></div><div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px;background:var(--ib);border-radius:8px">Paste a Loom, YouTube, or any video URL.</div><div class="fm" style="margin-bottom:12px"><label>Video URL</label><input type="url" id="vid-url" placeholder="https://www.loom.com/share/..." style="width:100%"></div><div class="fm" style="margin-bottom:14px"><label>Caption (optional)</label><input type="text" id="vid-caption" placeholder="Watch our 2-min product demo →" style="width:100%" value="Watch our 2-min product demo →"></div><div style="display:flex;gap:8px"><button class="btn bp" style="flex:1" onclick="insertVideoEmbed()">Insert into Email →</button><button class="btn bo" onclick="document.getElementById('mo-video').remove()">Cancel</button></div></div>`;
+  mo.onclick=e=>{if(e.target===mo)mo.remove();};document.body.appendChild(mo);
+  setTimeout(()=>document.getElementById('vid-url')?.focus(),100);
+}
+function insertVideoEmbed(){
+  const url=document.getElementById('vid-url')?.value?.trim();
+  const caption=document.getElementById('vid-caption')?.value?.trim()||'Watch video →';
+  if(!url){ntf('Enter a video URL','error');return;}
+  const bodyEl=document.getElementById('em-body');
+  if(!bodyEl){ntf('Generate an email first','error');return;}
+  bodyEl.value=bodyEl.value+`
+
+🎥 ${caption}
+${url}`;
+  document.getElementById('mo-video')?.remove();
+  ntf('✓ Video link added to email');
+}
+async function enrichCompany(companyId,companyName){
+  ntf('Enriching '+companyName+'...','warning');
   try{
-    const r=await fetch(`/auth/team/${userId}`,{method:'DELETE'}).then(r=>r.json());
-    if(r.success){ntf(`✓ ${name} removed`);loadTeamMembers();}
-    else ntf(r.message||'Could not remove','error');
-  }catch(e){ntf('Error','error');}
+    const r=await fetch('/companies/'+companyId+'/enrich',{method:'PATCH'}).then(r=>r.json());
+    if(r.success){ntf('✓ '+companyName+' enriched'+(r.updated&&r.updated.length?' - updated: '+r.updated.join(', '):''));if(curComp)loadContacts(curComp);}
+    else ntf('Could not enrich','error');
+  }catch(e){ntf('Enrich failed','error');}
 }
 </script>
 </body>

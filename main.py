@@ -1119,7 +1119,7 @@ def autofind_contacts_for_companies(company_ids: list, campaign_id: int):
                         continue
 
                     # Auto-delete rule: skip contacts with email but low confidence
-                    if email and confidence_score < 70:
+                    if email and confidence_score < 50:
                         print(f"[AutoFind] Skipping {full_name} — low confidence ({confidence_score})")
                         continue
 
