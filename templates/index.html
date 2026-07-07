@@ -1998,6 +1998,43 @@ function getChartColors(){
   };
 }
 
+function showFunnelBreakdown(category){
+  const leads = window._dashLeadsCache || [];
+  let filtered = [];
+  let title = '';
+  if(category==='Total'){ filtered = leads; title = 'All Leads'; }
+  else if(category==='Emailed'){ filtered = leads.filter(l=>l.emailed_at); title = 'Ever Emailed'; }
+  else if(category==='Opened'){ filtered = leads.filter(l=>l.email_opened); title = 'Opened Your Email'; }
+  else if(category==='Replied'){ filtered = leads.filter(l=>l.status==='responded'); title = 'Replied'; }
+
+  const rejected = filtered.filter(l=>l.status==='rejected').length;
+  const unsubscribed = filtered.filter(l=>l.status==='unsubscribed').length;
+  const responded = filtered.filter(l=>l.status==='responded').length;
+  const softRejection = filtered.filter(l=>l.status==='soft_rejection').length;
+  const stillPending = filtered.filter(l=>['new','emailed'].includes(l.status)).length;
+  const total = filtered.length;
+
+  const ex=document.getElementById('mo-funnel-breakdown');if(ex)ex.remove();
+  const mo=document.createElement('div');mo.id='mo-funnel-breakdown';mo.className='mo show';
+  const row=(label,count,color)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--ib);border:1px solid var(--ic);border-radius:8px;margin-bottom:6px">
+    <span style="font-size:13px;color:var(--t2)">${label}</span>
+    <span style="font-size:16px;font-weight:700;color:${color}">${count}</span>
+  </div>`;
+  mo.innerHTML=`<div class="modal" style="width:420px">
+    <div class="mh"><div class="mt">${title} — ${total} total</div><button class="mcl" onclick="document.getElementById('mo-funnel-breakdown').remove()">&#215;</button></div>
+    <div style="font-size:12px;color:var(--t3);margin-bottom:14px">Breakdown of what happened to this group afterward</div>
+    ${row('✓ Responded',responded,'#34D399')}
+    ${row('⚠ Soft Rejection',softRejection,'var(--accent)')}
+    ${row('✕ Rejected / Bounced',rejected,'#F87171')}
+    ${row('🚫 Unsubscribed',unsubscribed,'#F87171')}
+    ${row('— Still Pending (no reply yet)',stillPending,'var(--t3)')}
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--dv)">
+      <button class="btn bo sm" onclick="document.getElementById('mo-funnel-breakdown').remove()">Close</button>
+    </div>
+  </div>`;
+  document.body.appendChild(mo);
+}
+
 async function loadDashCharts(){
   if(typeof Chart === 'undefined') return;
   const co = getChartColors();
@@ -2033,6 +2070,7 @@ async function loadDashCharts(){
     const emailed=stats.total_sent||0;
     const opened=leads.filter(l=>l.email_opened).length;
     const responded=stats.responded||0;
+    window._dashLeadsCache = leads; // cache for funnel breakdown click handler
     const ctxF = document.getElementById('chart-funnel');
     if(ctxF){
       if(chartFunnel) chartFunnel.destroy();
@@ -2042,7 +2080,12 @@ async function loadDashCharts(){
           labels:['Total','Emailed','Opened','Replied'],
           datasets:[{data:[total,emailed,opened,responded],backgroundColor:[co.blue+co.fillOpacity,co.accent+co.fillOpacity,co.purple+co.fillOpacity,co.green+co.fillOpacity],borderColor:[co.blue,co.accent,co.purple,co.green],borderWidth:1,borderRadius:4}]
         },
-        options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{color:co.grid},ticks:{color:co.text,font:{size:10}}},y:{grid:{display:false},ticks:{color:co.text,font:{size:10}}}}}
+        options:{indexAxis:'y',responsive:true,onClick:(evt,elements)=>{
+          if(!elements.length)return;
+          const idx=elements[0].index;
+          const labels=['Total','Emailed','Opened','Replied'];
+          showFunnelBreakdown(labels[idx]);
+        },onHover:(evt,elements)=>{evt.native.target.style.cursor=elements.length?'pointer':'default';},plugins:{legend:{display:false}},scales:{x:{grid:{color:co.grid},ticks:{color:co.text,font:{size:10}}},y:{grid:{display:false},ticks:{color:co.text,font:{size:10}}}}}
       });
     }
 
