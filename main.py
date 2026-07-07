@@ -48,7 +48,7 @@ def get_base_url() -> str:
     except: pass
     return os.getenv("BASE_URL","http://localhost:8000")
 
-def send_via_resend(to_email, subject, body, from_name="LeadFlow AI", bcc_email=None, lead_id=None):
+def send_via_resend(to_email, subject, body, from_name="LeadFlow AI", bcc_email=None, lead_id=None, reply_to=None):
     """Send email via Resend API - works on Railway (no SMTP port blocking).
     If lead_id is given, also sends an HTML version with an embedded open-tracking
     pixel. Without this, opens can never be tracked: a plain-text-only email renders
@@ -56,14 +56,21 @@ def send_via_resend(to_email, subject, body, from_name="LeadFlow AI", bcc_email=
     ever fires — confirmed via live test (email sent, opened, "Opened" never updated).
     Optionally BCCs the sender's own configured email so sent emails are visible
     somewhere (Resend sends via API, not through the user's actual Gmail account,
-    so without a BCC, sent emails appear nowhere in the user's own inbox)."""
+    so without a BCC, sent emails appear nowhere in the user's own inbox).
+    reply_to should be set to the user's real Gmail address: once sending from a
+    verified custom domain (not onboarding@resend.dev), prospect replies would
+    otherwise go to that domain's address, which nothing is polling — the existing
+    reply-detection system only watches the user's actual Gmail inbox via IMAP.
+    Without reply_to, that detection system silently stops working the moment a
+    real domain is used instead of the Resend sandbox address."""
     import requests, os, html as html_lib
     api_key = os.getenv("RESEND_API_KEY", "")
     if not api_key:
         print("[Resend] RESEND_API_KEY not configured")
         return {"success": False, "error": "RESEND_API_KEY not configured"}
+    from_email = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
     try:
-        payload = {"from": f"{from_name} <onboarding@resend.dev>", "to": [to_email], "subject": subject, "text": body}
+        payload = {"from": f"{from_name} <{from_email}>", "to": [to_email], "subject": subject, "text": body}
         if lead_id:
             try:
                 escaped = html_lib.escape(body).replace("\n", "<br>\n")
@@ -73,6 +80,8 @@ def send_via_resend(to_email, subject, body, from_name="LeadFlow AI", bcc_email=
                 print(f"[Resend] Could not build HTML/tracking pixel version: {e}")
         if bcc_email:
             payload["bcc"] = [bcc_email]
+        if reply_to:
+            payload["reply_to"] = [reply_to]
         r = requests.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -102,7 +111,7 @@ def send_scheduled_emails():
             for em in due:
                 to = em.get("lead_email", "")
                 if not to: continue
-                result = send_via_resend(to, em.get("subject",""), em.get("body",""), lead_id=em.get("lead_id"))
+                result = send_via_resend(to, em.get("subject",""), em.get("body",""), lead_id=em.get("lead_id"), reply_to=get_default_owner_email())
                 db2 = get_db(); c2 = db2.cursor()
                 if result["success"]:
                     c2.execute("UPDATE scheduled_emails SET status=\'sent\',sent_at=NOW() WHERE id=%s", (em["id"],))
@@ -539,6 +548,20 @@ def get_user_gmail(session_token: str):
         if s and s.get("gmail_user") and s.get("gmail_app_password"):
             return s["gmail_user"], s["gmail_app_password"]
     return os.getenv("GMAIL_USER",""), os.getenv("GMAIL_APP_PASSWORD","")
+
+def get_default_owner_email():
+    """Fallback for background/no-session contexts (scheduled sends, A/B test,
+    timezone bulk send, bulk-send-by-role) where no session_token is available
+    to look up a specific user's Gmail. Used to set reply_to/bcc so prospect
+    replies still land in a real, monitored inbox instead of the Resend
+    sandbox address that nothing watches."""
+    try:
+        db = get_db(); cursor = db.cursor(dictionary=True)
+        cursor.execute("SELECT gmail_user FROM user_email_settings WHERE gmail_user IS NOT NULL AND gmail_user != '' LIMIT 1")
+        row = cursor.fetchone(); cursor.close(); db.close()
+        if row and row.get("gmail_user"): return row["gmail_user"]
+    except: pass
+    return os.getenv("GMAIL_USER","")
 
 
 def build_role_relevant_keywords(decision_titles):
@@ -1576,7 +1599,7 @@ async def bulk_send_by_role(campaign_id: int, request: BulkEmailRequest, backgro
             body = raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
             body = body + get_email_footer(lead["id"])
 
-            result = send_via_resend(lead["email"], subject, body, lead_id=lead["id"])
+            result = send_via_resend(lead["email"], subject, body, lead_id=lead["id"], reply_to=get_default_owner_email())
             if result["success"]:
                 db2=get_db(); c2=db2.cursor()
                 c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
@@ -1787,7 +1810,20 @@ async def verify_and_save_email(lead_id: int):
     cursor.execute("SELECT * FROM leads WHERE id=%s",(lead_id,))
     lead=cursor.fetchone()
     if not lead: raise HTTPException(404,"Lead not found")
-    result=find_email_prospeo(lead.get("linkedin_url",""),lead.get("first_name",""),lead.get("last_name",""))
+    # Derive a company domain so the name+domain fallback path actually has a chance —
+    # previously this endpoint only ever tried the LinkedIn-URL path, which meant any
+    # lead without a saved LinkedIn URL (e.g. CSV imports) could never be verified at all.
+    company_domain=""
+    if lead.get("company"):
+        try:
+            cb=get_domain_clearbit(lead["company"])
+            if cb:
+                company_domain=cb.replace("https://","").replace("http://","").replace("www.","").split("/")[0]
+        except: pass
+        if not company_domain:
+            variations=get_domain_variations(lead["company"])
+            if variations: company_domain=variations[0]
+    result=find_email_prospeo(lead.get("linkedin_url",""),lead.get("first_name",""),lead.get("last_name",""),company_domain)
     if result["found"]:
         cursor.execute("UPDATE leads SET email=%s,email_verified=1,email_source=%s,confidence_score=%s WHERE id=%s",
             (result["email"],result.get("email_source","prospeo_linkedin"),result.get("confidence_score",CONFIDENCE["prospeo_linkedin"]),lead_id))
@@ -2094,7 +2130,7 @@ async def send_email(lead_id: int, request: SendEmailRequest, session_token: str
     if not lead: raise HTTPException(404,"Lead not found")
     if not lead.get("email"): raise HTTPException(400,"Lead has no email address")
     bcc_email,_=get_user_gmail(session_token)
-    result = send_via_resend(lead["email"], request.subject, request.body, bcc_email=bcc_email or None, lead_id=lead_id)
+    result = send_via_resend(lead["email"], request.subject, request.body, bcc_email=bcc_email or None, lead_id=lead_id, reply_to=bcc_email or None)
     if result["success"]:
         db2=get_db(); c2=db2.cursor()
         c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,)); db2.commit(); c2.close(); db2.close()
@@ -2194,7 +2230,7 @@ async def bulk_send_emails(campaign_id: int, request: BulkEmailRequest, session_
             subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Opportunity — {lead['company']}"
             body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
             body=body+get_email_footer(lead["id"])
-            result=send_via_resend(lead["email"],subject,body,lead_id=lead["id"])
+            result=send_via_resend(lead["email"],subject,body,lead_id=lead["id"],reply_to=get_default_owner_email())
             if result["success"]:
                 db2=get_db(); c2=db2.cursor()
                 c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],)); db2.commit(); c2.close(); db2.close()
@@ -2248,7 +2284,7 @@ Return ONLY: Subject: [subject]\nBody: [body]"""
             subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else "Following up"
             body_text=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
             body_text=body_text+get_email_footer(lead["id"])
-            result=send_via_resend(lead["email"],subject,body_text,lead_id=lead["id"])
+            result=send_via_resend(lead["email"],subject,body_text,lead_id=lead["id"],reply_to=get_default_owner_email())
             if result["success"]:
                 db2=get_db(); c2=db2.cursor()
                 c2.execute("UPDATE leads SET emailed_at=NOW() WHERE id=%s",(lead["id"],)); db2.commit(); c2.close(); db2.close()
@@ -2303,7 +2339,7 @@ async def send_with_attachment(
     if not lead: raise HTTPException(404,"Lead not found")
     if not lead.get("email"): raise HTTPException(400,"Lead has no email")
     try:
-        result = send_via_resend(lead["email"], subject, body, lead_id=lead_id)
+        result = send_via_resend(lead["email"], subject, body, lead_id=lead_id, reply_to=get_default_owner_email())
         if result["success"]:
             db2=get_db(); c2=db2.cursor()
             c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,)); db2.commit(); c2.close(); db2.close()
@@ -2582,7 +2618,7 @@ def _send_ab_bg(group_a,group_b,scenario):
                 subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                 body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
                 body_full=add_email_footer(body,lead["id"])
-                result=send_via_resend(lead["email"],subj,body_full,lead_id=lead["id"])
+                result=send_via_resend(lead["email"],subj,body_full,lead_id=lead["id"],reply_to=get_default_owner_email())
                 if result["success"]:
                     db2=get_db(); c2=db2.cursor()
                     c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
@@ -2970,7 +3006,7 @@ def _send_tz_bg(leads, scenario):
                 subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                 body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
                 body_full=add_email_footer(body,lead["id"])
-                result=send_via_resend(lead["email"],subj,body_full,lead_id=lead["id"])
+                result=send_via_resend(lead["email"],subj,body_full,lead_id=lead["id"],reply_to=get_default_owner_email())
                 if result["success"]:
                     db2=get_db(); c2=db2.cursor()
                     c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
