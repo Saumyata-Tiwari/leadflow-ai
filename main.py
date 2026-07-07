@@ -48,18 +48,29 @@ def get_base_url() -> str:
     except: pass
     return os.getenv("BASE_URL","http://localhost:8000")
 
-def send_via_resend(to_email, subject, body, from_name="LeadFlow AI", bcc_email=None):
+def send_via_resend(to_email, subject, body, from_name="LeadFlow AI", bcc_email=None, lead_id=None):
     """Send email via Resend API - works on Railway (no SMTP port blocking).
+    If lead_id is given, also sends an HTML version with an embedded open-tracking
+    pixel. Without this, opens can never be tracked: a plain-text-only email renders
+    any <img> tag as literal visible text, not a real image, so no pixel request
+    ever fires — confirmed via live test (email sent, opened, "Opened" never updated).
     Optionally BCCs the sender's own configured email so sent emails are visible
     somewhere (Resend sends via API, not through the user's actual Gmail account,
     so without a BCC, sent emails appear nowhere in the user's own inbox)."""
-    import requests, os
+    import requests, os, html as html_lib
     api_key = os.getenv("RESEND_API_KEY", "")
     if not api_key:
         print("[Resend] RESEND_API_KEY not configured")
         return {"success": False, "error": "RESEND_API_KEY not configured"}
     try:
         payload = {"from": f"{from_name} <onboarding@resend.dev>", "to": [to_email], "subject": subject, "text": body}
+        if lead_id:
+            try:
+                escaped = html_lib.escape(body).replace("\n", "<br>\n")
+                pixel = get_tracking_pixel(lead_id)
+                payload["html"] = f"<div style=\"font-family:sans-serif;white-space:normal\">{escaped}</div>{pixel}"
+            except Exception as e:
+                print(f"[Resend] Could not build HTML/tracking pixel version: {e}")
         if bcc_email:
             payload["bcc"] = [bcc_email]
         r = requests.post(
@@ -91,7 +102,7 @@ def send_scheduled_emails():
             for em in due:
                 to = em.get("lead_email", "")
                 if not to: continue
-                result = send_via_resend(to, em.get("subject",""), em.get("body",""))
+                result = send_via_resend(to, em.get("subject",""), em.get("body",""), lead_id=em.get("lead_id"))
                 db2 = get_db(); c2 = db2.cursor()
                 if result["success"]:
                     c2.execute("UPDATE scheduled_emails SET status=\'sent\',sent_at=NOW() WHERE id=%s", (em["id"],))
@@ -1565,7 +1576,7 @@ async def bulk_send_by_role(campaign_id: int, request: BulkEmailRequest, backgro
             body = raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
             body = body + get_email_footer(lead["id"])
 
-            result = send_via_resend(lead["email"], subject, body)
+            result = send_via_resend(lead["email"], subject, body, lead_id=lead["id"])
             if result["success"]:
                 db2=get_db(); c2=db2.cursor()
                 c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
@@ -2083,7 +2094,7 @@ async def send_email(lead_id: int, request: SendEmailRequest, session_token: str
     if not lead: raise HTTPException(404,"Lead not found")
     if not lead.get("email"): raise HTTPException(400,"Lead has no email address")
     bcc_email,_=get_user_gmail(session_token)
-    result = send_via_resend(lead["email"], request.subject, request.body, bcc_email=bcc_email or None)
+    result = send_via_resend(lead["email"], request.subject, request.body, bcc_email=bcc_email or None, lead_id=lead_id)
     if result["success"]:
         db2=get_db(); c2=db2.cursor()
         c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,)); db2.commit(); c2.close(); db2.close()
@@ -2146,7 +2157,12 @@ async def bulk_send_emails(campaign_id: int, request: BulkEmailRequest, session_
     if not campaign: cursor.close(); db.close(); raise HTTPException(404,"Campaign not found")
     if campaign.get("is_paused"): cursor.close(); db.close(); return {"success":False,"message":"Campaign is paused. Resume it first.","sent":0,"skipped":0}
     today=date.today()
-    cursor.execute("""SELECT * FROM leads WHERE campaign_id=%s AND status NOT IN ('rejected','unsubscribed')
+    # For a COLD send, only target genuinely new leads — prevents accidentally sending a
+    # second, duplicate cold email to someone already emailed individually or in a prior
+    # bulk run. Follow-up sends (followup1/followup2) intentionally target already-emailed
+    # leads, since that's their whole purpose, so they keep the broader status filter.
+    status_filter = "AND status='new'" if request.email_type=="cold" else "AND status NOT IN ('rejected','unsubscribed')"
+    cursor.execute(f"""SELECT * FROM leads WHERE campaign_id=%s {status_filter}
         AND email IS NOT NULL AND email != '' AND confidence_score >= %s
         AND (cooldown_until IS NULL OR cooldown_until <= %s)""",(campaign_id,SEND_THRESHOLD,today))
     eligible=cursor.fetchall(); cursor.close(); db.close()
@@ -2178,7 +2194,7 @@ async def bulk_send_emails(campaign_id: int, request: BulkEmailRequest, session_
             subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Opportunity — {lead['company']}"
             body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
             body=body+get_email_footer(lead["id"])
-            result=send_via_resend(lead["email"],subject,body)
+            result=send_via_resend(lead["email"],subject,body,lead_id=lead["id"])
             if result["success"]:
                 db2=get_db(); c2=db2.cursor()
                 c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],)); db2.commit(); c2.close(); db2.close()
@@ -2232,7 +2248,7 @@ Return ONLY: Subject: [subject]\nBody: [body]"""
             subject=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else "Following up"
             body_text=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
             body_text=body_text+get_email_footer(lead["id"])
-            result=send_via_resend(lead["email"],subject,body_text)
+            result=send_via_resend(lead["email"],subject,body_text,lead_id=lead["id"])
             if result["success"]:
                 db2=get_db(); c2=db2.cursor()
                 c2.execute("UPDATE leads SET emailed_at=NOW() WHERE id=%s",(lead["id"],)); db2.commit(); c2.close(); db2.close()
@@ -2287,7 +2303,7 @@ async def send_with_attachment(
     if not lead: raise HTTPException(404,"Lead not found")
     if not lead.get("email"): raise HTTPException(400,"Lead has no email")
     try:
-        result = send_via_resend(lead["email"], subject, body)
+        result = send_via_resend(lead["email"], subject, body, lead_id=lead_id)
         if result["success"]:
             db2=get_db(); c2=db2.cursor()
             c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,)); db2.commit(); c2.close(); db2.close()
@@ -2566,7 +2582,7 @@ def _send_ab_bg(group_a,group_b,scenario):
                 subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                 body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
                 body_full=add_email_footer(body,lead["id"])
-                result=send_via_resend(lead["email"],subj,body_full)
+                result=send_via_resend(lead["email"],subj,body_full,lead_id=lead["id"])
                 if result["success"]:
                     db2=get_db(); c2=db2.cursor()
                     c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
@@ -2954,7 +2970,7 @@ def _send_tz_bg(leads, scenario):
                 subj=raw.split("Subject:",1)[1].split("\n")[0].strip() if "Subject:" in raw else f"Quick note — {lead['company']}"
                 body=raw.split("Body:",1)[1].strip() if "Body:" in raw else raw
                 body_full=add_email_footer(body,lead["id"])
-                result=send_via_resend(lead["email"],subj,body_full)
+                result=send_via_resend(lead["email"],subj,body_full,lead_id=lead["id"])
                 if result["success"]:
                     db2=get_db(); c2=db2.cursor()
                     c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
