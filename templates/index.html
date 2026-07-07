@@ -321,7 +321,32 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
     <div class="fm"><label>Min Company Size</label><input type="number" id="cn-min" value="50"></div>
     <div class="fm"><label>Max Company Size</label><input type="number" id="cn-max" value="10000"></div>
     <div class="fm"><label>Minimum Salary (USD/year)</label><input type="number" id="cn-sal" value="80000"><div class="sal-sug" id="sal-suggest" style="display:none">&#9670; <span id="sal-text"></span></div></div>
-    <div class="fm"><label>Industry Focus (optional)</label><input type="text" id="cn-industry" placeholder="e.g. Staffing &amp; Recruiting" value="Staffing &amp; Recruiting"><div style="font-size:11px;color:var(--t3);margin-top:3px">Narrows company search to this industry</div></div>
+    <div class="fm"><label>Industry Focus (optional)</label>
+      <select id="cn-industry-select" onchange="toggleIndustryCustom('cn')">
+        <option value="">No industry filter</option>
+        <option value="Staffing &amp; Recruiting" selected>Staffing &amp; Recruiting</option>
+        <option value="Human Resources">Human Resources</option>
+        <option value="Software Development">Software Development</option>
+        <option value="Information Technology &amp; Services">Information Technology &amp; Services</option>
+        <option value="Financial Services">Financial Services</option>
+        <option value="Healthcare">Healthcare</option>
+        <option value="Marketing &amp; Advertising">Marketing &amp; Advertising</option>
+        <option value="Consulting">Consulting</option>
+        <option value="Education">Education</option>
+        <option value="Real Estate">Real Estate</option>
+        <option value="Retail">Retail</option>
+        <option value="Manufacturing">Manufacturing</option>
+        <option value="E-commerce">E-commerce</option>
+        <option value="Insurance">Insurance</option>
+        <option value="Legal Services">Legal Services</option>
+        <option value="Hospitality">Hospitality</option>
+        <option value="Construction">Construction</option>
+        <option value="Telecommunications">Telecommunications</option>
+        <option value="__custom__">Custom (type below)...</option>
+      </select>
+      <input type="text" id="cn-industry" placeholder="Type custom industry..." value="Staffing &amp; Recruiting" style="display:none;margin-top:6px">
+      <div style="font-size:11px;color:var(--t3);margin-top:3px">Narrows company search to this industry</div>
+    </div>
     <div class="fm"><label>Exclude Company Types</label><input type="text" id="cn-excl" value="Staffing,Recruiting,Talent,Consultancy,IT Consultancy,Human Resources Services,Technology Information and Media,University,Non-profit,NGO"></div>
     <div class="fm full" style="flex-direction:row;gap:24px;flex-wrap:wrap;align-items:center">
       <label class="crow"><input type="checkbox" id="cn-int" checked> Exclude Internships</label>
@@ -888,7 +913,31 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <div class="fm"><label>Min Company Size</label><input type="number" id="ef-min"></div>
       <div class="fm"><label>Max Company Size</label><input type="number" id="ef-max"></div>
       <div class="fm"><label>Min Salary (USD)</label><input type="number" id="ef-sal"><div class="sal-sug" id="ef-sal-sug" style="display:none">&#9670; <span id="ef-sal-text"></span></div></div>
-      <div class="fm"><label>Industry Focus</label><input type="text" id="ef-industry" placeholder="e.g. Staffing &amp; Recruiting"></div>
+      <div class="fm"><label>Industry Focus</label>
+        <select id="ef-industry-select" onchange="toggleIndustryCustom('ef')">
+          <option value="">No industry filter</option>
+          <option value="Staffing &amp; Recruiting">Staffing &amp; Recruiting</option>
+          <option value="Human Resources">Human Resources</option>
+          <option value="Software Development">Software Development</option>
+          <option value="Information Technology &amp; Services">Information Technology &amp; Services</option>
+          <option value="Financial Services">Financial Services</option>
+          <option value="Healthcare">Healthcare</option>
+          <option value="Marketing &amp; Advertising">Marketing &amp; Advertising</option>
+          <option value="Consulting">Consulting</option>
+          <option value="Education">Education</option>
+          <option value="Real Estate">Real Estate</option>
+          <option value="Retail">Retail</option>
+          <option value="Manufacturing">Manufacturing</option>
+          <option value="E-commerce">E-commerce</option>
+          <option value="Insurance">Insurance</option>
+          <option value="Legal Services">Legal Services</option>
+          <option value="Hospitality">Hospitality</option>
+          <option value="Construction">Construction</option>
+          <option value="Telecommunications">Telecommunications</option>
+          <option value="__custom__">Custom (type below)...</option>
+        </select>
+        <input type="text" id="ef-industry" placeholder="Type custom industry..." style="display:none;margin-top:6px">
+      </div>
       <div class="fm"><label>Exclude Types</label><input type="text" id="ef-excl"></div>
       <div class="fm full" style="flex-direction:row;gap:20px;flex-wrap:wrap;align-items:center">
         <label class="crow"><input type="checkbox" id="ef-int"> Exclude Internships</label>
@@ -988,13 +1037,26 @@ async function loadDash(){
 let salTimer=null;
 function debounceS(){clearTimeout(salTimer);salTimer=setTimeout(async()=>{const role=document.getElementById('cn-role').value.trim();if(!role||role.length<3)return;try{const d=await fetch(`/salary-suggestion?role=${encodeURIComponent(role)}`).then(r=>r.json());document.getElementById('cn-sal').value=d.suggested_salary;document.getElementById('sal-text').textContent=d.message;document.getElementById('sal-suggest').style.display='flex';}catch(e){}},1200);}
 
+function toggleIndustryCustom(prefix){
+  const sel=document.getElementById(prefix+'-industry-select');
+  const txt=document.getElementById(prefix+'-industry');
+  if(!sel||!txt)return;
+  if(sel.value==='__custom__'){txt.style.display='block';txt.value='';txt.focus();}
+  else{txt.style.display='none';txt.value=sel.value;}
+}
+function getIndustryValue(prefix){
+  const sel=document.getElementById(prefix+'-industry-select');
+  const txt=document.getElementById(prefix+'-industry');
+  if(!sel)return txt?txt.value.trim():'';
+  return sel.value==='__custom__' ? (txt?txt.value.trim():'') : sel.value;
+}
 async function createCampaign(){
   if(isCreatingCampaign)return;
   const name=document.getElementById('cn-name').value.trim(),role=document.getElementById('cn-role').value.trim();
   if(!name||!role){ntf('Campaign name and target role are required','error');return;}
   isCreatingCampaign=true;const btn=document.getElementById('create-camp-btn');btn.textContent='Creating...';btn.disabled=true;
   try{
-    const res=await fetch('/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,target_role:role,target_location:document.getElementById('cn-loc').value,company_size_min:parseInt(document.getElementById('cn-min').value)||50,company_size_max:parseInt(document.getElementById('cn-max').value)||10000,min_salary:parseInt(document.getElementById('cn-sal').value)||80000,excluded_industries:document.getElementById('cn-excl').value.trim(),exclude_intern:document.getElementById('cn-int').checked,exclude_remote:document.getElementById('cn-rem').checked,exclude_apprentice:document.getElementById('cn-app').checked,job_date_filter:document.getElementById('cn-date').value,notes:document.getElementById('cn-not').value.trim(),industry_focus:document.getElementById('cn-industry')?.value.trim()||''})}).then(r=>r.json());
+    const res=await fetch('/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,target_role:role,target_location:document.getElementById('cn-loc').value,company_size_min:parseInt(document.getElementById('cn-min').value)||50,company_size_max:parseInt(document.getElementById('cn-max').value)||10000,min_salary:parseInt(document.getElementById('cn-sal').value)||80000,excluded_industries:document.getElementById('cn-excl').value.trim(),exclude_intern:document.getElementById('cn-int').checked,exclude_remote:document.getElementById('cn-rem').checked,exclude_apprentice:document.getElementById('cn-app').checked,job_date_filter:document.getElementById('cn-date').value,notes:document.getElementById('cn-not').value.trim(),industry_focus:getIndustryValue('cn')})}).then(r=>r.json());
     ntf('Campaign created!');['cn-name','cn-role','cn-not'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('sal-suggest').style.display='none';
     openCampaign(res.id,name,role);
@@ -1300,8 +1362,8 @@ async function checkH(){const role=document.getElementById('hr-r').value.trim();
 let efSalTimer=null;
 function debounceEFsal(){clearTimeout(efSalTimer);efSalTimer=setTimeout(async()=>{const role=document.getElementById('ef-role').value.trim();if(!role||role.length<3)return;try{const d=await fetch(`/salary-suggestion?role=${encodeURIComponent(role)}`).then(r=>r.json());document.getElementById('ef-sal').value=d.suggested_salary;document.getElementById('ef-sal-text').textContent=d.message;document.getElementById('ef-sal-sug').style.display='flex';}catch(e){}},1200);}
 
-async function openEditFilters(){try{const c=await fetch('/campaigns/'+currentCampaignId).then(r=>r.json());document.getElementById('ef-name').value=c.name||'';document.getElementById('ef-role').value=c.target_role||'';document.getElementById('ef-sal').value=c.min_salary||80000;document.getElementById('ef-min').value=c.company_size_min||50;document.getElementById('ef-max').value=c.company_size_max||10000;document.getElementById('ef-excl').value=c.excluded_industries||'';const efInd=document.getElementById('ef-industry');if(efInd)efInd.value=c.industry_focus||'';document.getElementById('ef-int').checked=!!c.exclude_intern;document.getElementById('ef-rem').checked=!!c.exclude_remote;document.getElementById('ef-app').checked=!!c.exclude_apprentice;document.getElementById('ef-sal-sug').style.display='none';document.getElementById('mo-filters').classList.add('show');}catch(e){ntf('Error','error');}}
-function getFilterData(){return{name:document.getElementById('ef-name').value.trim(),target_role:document.getElementById('ef-role').value.trim(),target_location:document.getElementById('ef-loc').value,company_size_min:parseInt(document.getElementById('ef-min').value)||50,company_size_max:parseInt(document.getElementById('ef-max').value)||10000,min_salary:parseInt(document.getElementById('ef-sal').value)||80000,excluded_industries:document.getElementById('ef-excl').value.trim(),industry_focus:document.getElementById('ef-industry')?.value.trim()||'',exclude_intern:document.getElementById('ef-int').checked,exclude_remote:document.getElementById('ef-rem').checked,exclude_apprentice:document.getElementById('ef-app').checked,job_date_filter:document.getElementById('ef-date').value,notes:''};}
+async function openEditFilters(){try{const c=await fetch('/campaigns/'+currentCampaignId).then(r=>r.json());document.getElementById('ef-name').value=c.name||'';document.getElementById('ef-role').value=c.target_role||'';document.getElementById('ef-sal').value=c.min_salary||80000;document.getElementById('ef-min').value=c.company_size_min||50;document.getElementById('ef-max').value=c.company_size_max||10000;document.getElementById('ef-excl').value=c.excluded_industries||'';const efSel=document.getElementById('ef-industry-select');const efInd=document.getElementById('ef-industry');if(efSel){const val=c.industry_focus||'';const optExists=Array.from(efSel.options).some(o=>o.value===val);if(optExists){efSel.value=val;efInd.style.display='none';}else if(val){efSel.value='__custom__';efInd.value=val;efInd.style.display='block';}else{efSel.value='';efInd.style.display='none';}}document.getElementById('ef-int').checked=!!c.exclude_intern;document.getElementById('ef-rem').checked=!!c.exclude_remote;document.getElementById('ef-app').checked=!!c.exclude_apprentice;document.getElementById('ef-sal-sug').style.display='none';document.getElementById('mo-filters').classList.add('show');}catch(e){ntf('Error','error');}}
+function getFilterData(){return{name:document.getElementById('ef-name').value.trim(),target_role:document.getElementById('ef-role').value.trim(),target_location:document.getElementById('ef-loc').value,company_size_min:parseInt(document.getElementById('ef-min').value)||50,company_size_max:parseInt(document.getElementById('ef-max').value)||10000,min_salary:parseInt(document.getElementById('ef-sal').value)||80000,excluded_industries:document.getElementById('ef-excl').value.trim(),industry_focus:getIndustryValue('ef'),exclude_intern:document.getElementById('ef-int').checked,exclude_remote:document.getElementById('ef-rem').checked,exclude_apprentice:document.getElementById('ef-app').checked,job_date_filter:document.getElementById('ef-date').value,notes:''};}
 async function saveFiltersOnly(){const data=getFilterData();if(!data.name||!data.target_role){ntf('Required','error');return;}await fetch('/campaigns/'+currentCampaignId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});ntf('Saved');cmo('mo-filters');}
 async function saveFiltersAndSearch(){const data=getFilterData();if(!data.name||!data.target_role){ntf('Required','error');return;}await fetch('/campaigns/'+currentCampaignId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});ntf('Saved — searching...');cmo('mo-filters');searchCompanies(currentCampaignId);}
 

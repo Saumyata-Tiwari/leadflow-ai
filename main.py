@@ -530,6 +530,47 @@ def get_user_gmail(session_token: str):
     return os.getenv("GMAIL_USER",""), os.getenv("GMAIL_APP_PASSWORD","")
 
 
+def build_role_relevant_keywords(decision_titles):
+    """
+    Build department-aware relevance keywords from the AI-generated decision_titles
+    for THIS specific campaign's target role. Replaces a blanket 'any senior title
+    passes' filter that let unrelated departments through (e.g. 'VP of Engineering'
+    or 'Chief Human Resources Officer' incorrectly saved as a match for a
+    'VP Sales' campaign, since both contain generic words like 'vp'/'chief').
+    HR/Talent keywords are always included regardless of target role, since those
+    contacts are legitimately relevant to hiring approval for any role.
+    Words like 'vp','svp','evp','chief','director','vice','president' are department-
+    agnostic MODIFIERS (VP of WHAT? Chief WHAT Officer?) and are deliberately excluded
+    from automatic matching — only the specific department word they're paired with in
+    decision_titles (e.g. 'revenue','talent','human','resources') counts as a keyword.
+    A bare, unqualified 'President' in decision_titles is a special case re-added below,
+    since that alone (not 'Vice President') is a genuine top-of-org decision maker.
+    """
+    HR_TALENT_ALWAYS = {"talent","recruit","recruiting","hr","staffing","hiring",
+                         "acquisition","workforce","personnel","human","resources","people"}
+    STOPWORDS = {"of","the","and","for","a","an","in","at","to","by","on","or","is",
+                 "chief","officer","vice","president","director","head","senior","lead",
+                 "manager","vp","svp","evp"}
+    SHORT_EXEC_ABBR = {"ceo","coo","cto","cro","cfo","cmo","cpo","chro"}
+    role_kw = set(HR_TALENT_ALWAYS)
+    for t in decision_titles or []:
+        for word in t.lower().replace("-"," ").replace("/"," ").split():
+            clean = word.strip(".,()")
+            if not clean or clean in STOPWORDS: continue
+            if len(clean) >= 3 or clean in SHORT_EXEC_ABBR:
+                role_kw.add(clean)
+    for t in decision_titles or []:
+        if t.strip().lower() == "president": role_kw.add("president")
+    return role_kw
+
+def title_matches_role(person_title, role_kw):
+    """Neutralize 'vice president' so the bare 'president' keyword doesn't
+    accidentally match VP-level titles — Vice President always needs a
+    department pairing just like plain VP; only a genuinely bare, unqualified
+    'President' should match on the 'president' keyword alone."""
+    normalized = (person_title or "").lower().replace("vice president", "__vp__")
+    return any(kw in normalized for kw in role_kw)
+
 def get_contact_titles(target_role: str):
     prompt = f"""You are a Senior B2B Lead Generation Strategist specializing in US recruitment outreach.
 A US recruitment firm wants to place candidates for the role: "{target_role}"
@@ -594,7 +635,7 @@ def search_jobs_jsearch(role, location, date_posted="week", min_salary=0, exclud
         data = response.json()
         if not data.get("data"): return {"error":"No results","jobs":[],"total":0}
         jobs=[]; seen=set()
-        excl_kw=["staffing","recruiting","recruiter","talent","consulting","consultancy","consultant","it consulting","human resources","hr services","university","college","school","non-profit","nonprofit","ngo","charity","foundation"]+excluded
+        excl_kw=["staffing","recruiting","recruiter","talent","consulting","consultancy","consultant","it consulting","human resources","hr services","university","college","school","non-profit","nonprofit","ngo","charity","foundation","media","publishing","newspaper","magazine","broadcasting","journalism"]+excluded
         for job in data["data"]:
             employer = job.get("employer_name","").strip()
             if not employer or employer in seen: continue
@@ -631,7 +672,7 @@ def search_companies_apollo(role,location="United States",min_employees=50,max_e
     if not api_key: return {"error":"Apollo not configured","jobs":[]}
     headers={"Content-Type":"application/json","Cache-Control":"no-cache","X-Api-Key":api_key}
     excluded=[i.strip().lower() for i in excluded_industries.split(",") if i.strip()]
-    excl_kw=["staffing","recruiting","recruiter","talent","consulting","consultancy","human resources","university","college","non-profit","nonprofit","ngo"]+excluded
+    excl_kw=["staffing","recruiting","recruiter","talent","consulting","consultancy","human resources","university","college","non-profit","nonprofit","ngo","media","publishing","newspaper","magazine","broadcasting","journalism"]+excluded
     try:
         payload={"page":page,"per_page":25,"organization_locations":[location],"organization_num_employees_ranges":[f"{min_employees},{max_employees}"]}
         if industry_focus:
@@ -661,7 +702,7 @@ def search_jobs_adzuna(role,location,min_salary=0,excluded_industries="",exclude
     if not app_id or not api_key: return {"error":"Adzuna not configured","jobs":[]}
     country="gb" if any(x in location.lower() for x in ["uk","united kingdom","london","manchester"]) else "us"
     excluded=[i.strip().lower() for i in excluded_industries.split(",") if i.strip()]
-    excl_kw=["staffing","recruiting","recruiter","talent","consulting","consultancy","human resources","university","college","non-profit","nonprofit","ngo"]+excluded
+    excl_kw=["staffing","recruiting","recruiter","talent","consulting","consultancy","human resources","university","college","non-profit","nonprofit","ngo","media","publishing","newspaper","magazine","broadcasting","journalism"]+excluded
     try:
         loc_raw=location.split(",")[0].strip()
         loc_clean="" if loc_raw.lower() in ["united states","us","usa","united kingdom","uk","gb"] else loc_raw
@@ -738,26 +779,38 @@ def get_domain_variations(company_name,website=""):
     return list(dict.fromkeys(domains))
 
 def find_email_prospeo(linkedin_url="",first_name="",last_name="",company_domain=""):
+    """
+    Uses Prospeo's current /enrich-person API. The old /email-finder and
+    /linkedin-email-finder endpoints this used to call are DEPRECATED and now
+    return {"req_status":false,"error_code":"DEPRECATED"} — confirmed via live
+    test. Do not revert to those endpoints.
+    """
     api_key=os.getenv("PROSPEO_API_KEY","")
     if not api_key: return {"found":False,"email":"","confidence_score":0,"email_source":"unknown"}
     headers={"Content-Type":"application/json","X-KEY":api_key}
+
+    def _try_enrich(data, source, method):
+        try:
+            r=requests.post("https://api.prospeo.io/enrich-person",headers=headers,
+                json={"only_verified_email":True,"data":data},timeout=15)
+            d=r.json()
+            if d.get("error"): return None  # NO_MATCH, INVALID_DATAPOINTS, etc.
+            person=d.get("person",{}) or {}
+            email_obj=person.get("email") or {}
+            email=email_obj.get("email","")
+            if email:
+                return {"found":True,"email":email,"verified":True,"method":method,
+                        "email_source":source,"confidence_score":CONFIDENCE[source],
+                        "message":f"Email found via {method}"}
+        except Exception as e: print(f"Prospeo {method} error: {e}")
+        return None
+
     if linkedin_url:
-        try:
-            r=requests.post("https://api.prospeo.io/linkedin-email-finder",headers=headers,json={"url":linkedin_url},timeout=15)
-            d=r.json()
-            if d.get("ok") and d.get("response",{}).get("email"):
-                return {"found":True,"email":d["response"]["email"],"verified":True,"method":"linkedin",
-                        "email_source":"prospeo_linkedin","confidence_score":CONFIDENCE["prospeo_linkedin"],"message":"Email found via LinkedIn"}
-        except Exception as e: print(f"Prospeo LinkedIn error: {e}")
+        result=_try_enrich({"linkedin_url":linkedin_url},"prospeo_linkedin","linkedin")
+        if result: return result
     if first_name and last_name and company_domain:
-        try:
-            r=requests.post("https://api.prospeo.io/email-finder",headers=headers,
-                json={"first_name":first_name,"last_name":last_name,"company":company_domain},timeout=15)
-            d=r.json()
-            if d.get("ok") and d.get("response",{}).get("email"):
-                return {"found":True,"email":d["response"]["email"],"verified":True,"method":"name_domain",
-                        "email_source":"prospeo_name","confidence_score":CONFIDENCE["prospeo_name"],"message":"Email found via name+domain"}
-        except Exception as e: print(f"Prospeo name error: {e}")
+        result=_try_enrich({"first_name":first_name,"last_name":last_name,"company_website":company_domain},"prospeo_name","name_domain")
+        if result: return result
     return {"found":False,"email":"","confidence_score":0,"email_source":"unknown","message":"Not found via Prospeo"}
 
 def find_email_by_name_snov(first_name,last_name,domain):
@@ -813,15 +866,13 @@ def get_apollo_top_people(company_name,company_domain,titles):
         print(f"[Apollo] Found {len(raw)} people for {company_name}")
 
         if not raw: return []
-        RELEVANT_KW = ["talent","recruit","hr","human resource","people","staffing","hiring",
-                       "acquisition","vp","vice president","director","chief","head","president",
-                       "founder","ceo","coo","cto","partner","managing","executive","workforce"]
+        role_kw = build_role_relevant_keywords(titles)
         people=[]; seen=set()
         for p in raw:
             first=p.get("first_name","")
             if not first or first in seen: continue
-            p_title = p.get("title","").lower()
-            if titles and not any(kw in p_title for kw in RELEVANT_KW):
+            p_title = p.get("title","")
+            if titles and not title_matches_role(p_title, role_kw):
                 print(f"[Apollo] Skipping {first} ({p.get('title','')}) — not relevant")
                 continue
             seen.add(first)
@@ -1217,13 +1268,8 @@ def autofind_contacts_for_companies(company_ids: list, campaign_id: int):
                         print(f"[AutoFind] Skipping {full_name} — no email found")
                         continue
 
-                    RELEVANT_KEYWORDS = [
-                        "talent","recruit","hr","human resource","people","staffing",
-                        "hiring","acquisition","workforce","personnel","vp","vice president",
-                        "director","chief","head of","president","founder","ceo","coo","cto",
-                        "partner","managing","principal","executive"
-                    ]
-                    title_match = any(kw in person_title for kw in RELEVANT_KEYWORDS)
+                    RELEVANT_KEYWORDS = build_role_relevant_keywords(decision_titles)
+                    title_match = title_matches_role(person.get("title",""), RELEVANT_KEYWORDS)
                     if not title_match:
                         print(f"[AutoFind] Skipping {full_name} ({person.get('title','')}) — title not relevant")
                         continue
