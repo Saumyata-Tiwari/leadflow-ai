@@ -1530,7 +1530,7 @@ async def create_lead(lead: LeadCreate):
 @app.get("/leads/stats")
 async def get_stats():
     db=get_db(); cursor=db.cursor(dictionary=True)
-    cursor.execute("""SELECT COUNT(*) as total_leads,COALESCE(SUM(CASE WHEN status='new' THEN 1 ELSE 0 END),0) as new_leads,COALESCE(SUM(CASE WHEN status='emailed' THEN 1 ELSE 0 END),0) as emailed,COALESCE(SUM(CASE WHEN status='responded' THEN 1 ELSE 0 END),0) as responded,COALESCE(SUM(CASE WHEN status='soft_rejection' THEN 1 ELSE 0 END),0) as soft_rejection,COALESCE(SUM(CASE WHEN status='rejected' THEN 1 ELSE 0 END),0) as rejected,COALESCE(SUM(CASE WHEN status='unsubscribed' THEN 1 ELSE 0 END),0) as unsubscribed,COALESCE(SUM(CASE WHEN status='no_response' THEN 1 ELSE 0 END),0) as no_response FROM leads""")
+    cursor.execute("""SELECT COUNT(*) as total_leads,COALESCE(SUM(CASE WHEN status='new' THEN 1 ELSE 0 END),0) as new_leads,COALESCE(SUM(CASE WHEN status='emailed' THEN 1 ELSE 0 END),0) as emailed,COALESCE(SUM(CASE WHEN emailed_at IS NOT NULL THEN 1 ELSE 0 END),0) as total_sent,COALESCE(SUM(CASE WHEN status='responded' THEN 1 ELSE 0 END),0) as responded,COALESCE(SUM(CASE WHEN status='soft_rejection' THEN 1 ELSE 0 END),0) as soft_rejection,COALESCE(SUM(CASE WHEN status='rejected' THEN 1 ELSE 0 END),0) as rejected,COALESCE(SUM(CASE WHEN status='unsubscribed' THEN 1 ELSE 0 END),0) as unsubscribed,COALESCE(SUM(CASE WHEN status='no_response' THEN 1 ELSE 0 END),0) as no_response FROM leads""")
     r=cursor.fetchone(); cursor.close(); db.close(); return r
 
 
@@ -1625,12 +1625,19 @@ async def bulk_send_by_role(campaign_id: int, request: BulkEmailRequest, backgro
 
 @app.get("/unsubscribe")
 async def unsubscribe_lead(token: str, response: Response):
-    """One-click unsubscribe — marks lead as unsubscribed"""
+    """One-click unsubscribe — marks lead as unsubscribed.
+    Also marks the lead as opened+clicked, since reaching this page inherently
+    required opening the email and clicking a link — previously this was left
+    blank even for unsubscribed leads, making it look like they never opened
+    or clicked anything despite clearly having done both."""
     try:
         import base64
         lead_id = int(base64.urlsafe_b64decode(token + "==").decode())
         db=get_db(); cursor=db.cursor()
-        cursor.execute("UPDATE leads SET status='unsubscribed' WHERE id=%s", (lead_id,))
+        cursor.execute("""UPDATE leads SET status='unsubscribed',
+            email_opened=1, open_count=COALESCE(open_count,0)+1, last_opened_at=NOW(),
+            email_clicked=1, click_count=COALESCE(click_count,0)+1, last_clicked_at=NOW()
+            WHERE id=%s""", (lead_id,))
         db.commit(); cursor.close(); db.close()
         return HTMLResponse(content="""
         <html><body style="font-family:Arial,sans-serif;text-align:center;padding:60px;background:#f5f5f5">
@@ -1875,7 +1882,7 @@ async def generate_email(request: EmailRequest):
                 f"User intent / context: {sc}\n\n"
                 f"{ANTI_GENERIC_RULE}\n"
                 "Read the intent and write the most appropriate cold email:\n"
-                "- Recruitment/candidates: pitch pre-vetted candidates, soft 15-min CTA\n"
+                "- Recruitment/candidates: pitch pre-vetted candidates, soft 30-min CTA\n"
                 "- Product/SaaS/demo: introduce product naturally, ask for demo time\n"
                 "- Freelance/portfolio: introduce skills, ask to discuss projects\n"
                 "- Student/internship: professional intro, express interest, ask for call\n"
@@ -1916,7 +1923,7 @@ async def generate_email(request: EmailRequest):
                 f"Lead: {fn} {ln}, {title} at {company}\n"
                 f"Industry: {industry} | Location: {location} | Hiring: {target}\n"
                 f"{ANTI_GENERIC_RULE}\n"
-                "Rules: Max 75 words body. Mention company. Focus on pre-vetted candidates. Soft CTA 15-min call. Industry-tailored.\n"
+                "Rules: Max 75 words body. Mention company. Focus on pre-vetted candidates. Soft CTA 30-min call. Industry-tailored.\n"
                 "Return ONLY:\nSubject: [subject]\nBody: [body]"
             )
         elif request.email_type == "followup1":
@@ -1966,7 +1973,7 @@ async def generate_email(request: EmailRequest):
         print(f"[Calendly] URL: {repr(cal_url)}")
     except Exception as e: cal_url=""; print(f"[Calendly] Error: {e}")
     if cal_url:
-        body=body+f"\n\nBook a 15-min call here: {cal_url}"
+        body=body+f"\n\nBook a 30-min call here: {cal_url}"
         print("[Calendly] Appended to email")
     body=body+get_email_footer(request.lead_id)
     db=get_db(); cursor=db.cursor()
@@ -2222,7 +2229,7 @@ async def bulk_send_emails(campaign_id: int, request: BulkEmailRequest, session_
                     "Write a short professional B2B cold email for a US/UK recruitment firm.\n"
                     f"Lead: {lead['first_name']} {lead.get('last_name','')}, {lead['title']} at {lead['company']}\n"
                     f"Industry: {lead.get('industry','')} | Hiring: {lead.get('target_role','')}\n"
-                    "Rules: Max 75 words. Mention company. Focus on pre-vetted candidates. Soft CTA 15-min call.\n"
+                    "Rules: Max 75 words. Mention company. Focus on pre-vetted candidates. Soft CTA 30-min call.\n"
                     "Return ONLY:\nSubject: [subject]\nBody: [body]"
                 )
             ai_r=client.chat.completions.create(model="llama-3.3-70b-versatile",messages=[{"role":"user","content":prompt}])
@@ -2423,6 +2430,75 @@ async def check_bounces():
         mail.logout()
     except Exception as e: return {"success":False,"message":str(e)}
     return {"success":True,"bounced_count":len(bounced),"bounced":bounced,"message":f"{len(bounced)} bounced emails found"}
+    # NOTE: this only works for Gmail-SMTP-based sending, where bounce notifications
+    # land as real emails in the sender's own Gmail inbox. Since sending now goes
+    # through Resend's API (not Gmail SMTP), real bounces never appear in Gmail at
+    # all — this will always report 0 bounces regardless of actual bounce activity.
+    # See /webhooks/resend below for the real, working bounce-detection path.
+
+# ── RESEND WEBHOOK — real bounce/complaint detection ──────────────
+# Configure this in Resend Dashboard → Webhooks → Add Endpoint:
+#   URL: https://<your-railway-url>/webhooks/resend
+#   Events: email.bounced, email.complained (add others like email.opened/
+#   email.clicked too if you ever want Resend's tracking as a second source,
+#   though this app already has its own pixel/click tracking built in)
+# Optionally set RESEND_WEBHOOK_SECRET (the "signing secret" shown when you
+# create the webhook) to enable signature verification below.
+@app.post("/webhooks/resend")
+async def resend_webhook(request: Request):
+    import hmac, hashlib, base64, json as json_lib
+    raw_body = await request.body()
+    webhook_secret = os.getenv("RESEND_WEBHOOK_SECRET", "")
+    if webhook_secret:
+        try:
+            svix_id = request.headers.get("svix-id", "")
+            svix_timestamp = request.headers.get("svix-timestamp", "")
+            svix_signature = request.headers.get("svix-signature", "")
+            secret_bytes = base64.b64decode(webhook_secret.split("_", 1)[-1]) if webhook_secret.startswith("whsec_") else webhook_secret.encode()
+            signed_content = f"{svix_id}.{svix_timestamp}.{raw_body.decode()}"
+            expected_sig = base64.b64encode(hmac.new(secret_bytes, signed_content.encode(), hashlib.sha256).digest()).decode()
+            provided_sigs = [s.split(",")[1] for s in svix_signature.split(" ") if "," in s]
+            if expected_sig not in provided_sigs:
+                print("[ResendWebhook] Signature verification failed — rejecting")
+                raise HTTPException(401, "Invalid signature")
+        except HTTPException: raise
+        except Exception as e:
+            print(f"[ResendWebhook] Signature check error (allowing through): {e}")
+    else:
+        print("[ResendWebhook] RESEND_WEBHOOK_SECRET not set — skipping signature verification (set it in Railway for production hardening)")
+
+    try:
+        event = json_lib.loads(raw_body)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid JSON: {e}")
+
+    event_type = event.get("type", "")
+    data = event.get("data", {})
+    recipients = data.get("to", [])
+
+    if event_type == "email.bounced" and recipients:
+        bounce_info = data.get("bounce", {})
+        for recipient in recipients:
+            db=get_db(); c=db.cursor(dictionary=True)
+            c.execute("SELECT id, full_name FROM leads WHERE email=%s AND status NOT IN ('unsubscribed','rejected')",(recipient,))
+            lead=c.fetchone(); c.close(); db.close()
+            if lead:
+                db2=get_db(); c2=db2.cursor()
+                c2.execute("UPDATE leads SET email_bounced=1,status='rejected' WHERE id=%s",(lead["id"],))
+                db2.commit(); c2.close(); db2.close()
+                print(f"[ResendWebhook] Bounce recorded for {lead['full_name']} ({recipient}): {bounce_info.get('message','')}")
+
+    elif event_type == "email.complained" and recipients:
+        # A spam complaint is a strong signal — treat exactly like unsubscribe/blacklist
+        for recipient in recipients:
+            add_to_blacklist(recipient, "spam_complaint")
+            db=get_db(); c=db.cursor()
+            c.execute("UPDATE leads SET status='unsubscribed' WHERE email=%s",(recipient,))
+            db.commit(); c.close(); db.close()
+            print(f"[ResendWebhook] Spam complaint recorded for {recipient} — blacklisted")
+
+    return {"received": True}
+
 
 # ── PREVIEW BULK EMAIL ────────────────────────────────────────
 @app.post("/campaigns/{campaign_id}/preview-bulk-email")
@@ -2846,6 +2922,91 @@ async def delete_template(tid: int):
     c.execute("DELETE FROM email_templates WHERE id=%s",(tid,))
     db.commit(); c.close(); db.close()
     return {"success":True}
+
+def personalize_template(text, lead):
+    """Replace {first_name}/{last_name}/{full_name}/{company}/{title} placeholders
+    in a saved template with this lead's actual data, case-insensitively."""
+    if not text: return text
+    replacements = {
+        "{first_name}": lead.get("first_name","") or "",
+        "{last_name}": lead.get("last_name","") or "",
+        "{full_name}": lead.get("full_name","") or "",
+        "{company}": lead.get("company","") or "",
+        "{title}": lead.get("title","") or "",
+    }
+    result = text
+    for placeholder, value in replacements.items():
+        result = re.sub(re.escape(placeholder), value, result, flags=re.IGNORECASE)
+    return result
+
+@app.post("/leads/{lead_id}/send-template/{tid}")
+async def send_template_to_lead(lead_id: int, tid: int, session_token: str = Cookie(default=None)):
+    """Send a saved template to one specific lead — fixes 'no option to use a
+    saved template for a particular lead' (previously templates could only be
+    loaded into the modal for manual editing, not sent directly)."""
+    db=get_db(); c=db.cursor(dictionary=True)
+    c.execute("SELECT * FROM email_templates WHERE id=%s",(tid,))
+    template=c.fetchone()
+    if not template: c.close(); db.close(); raise HTTPException(404,"Template not found")
+    c.execute("SELECT * FROM leads WHERE id=%s",(lead_id,))
+    lead=c.fetchone(); c.close(); db.close()
+    if not lead: raise HTTPException(404,"Lead not found")
+    if not lead.get("email"): raise HTTPException(400,"Lead has no email address")
+    subject=personalize_template(template.get("subject",""), lead)
+    body=personalize_template(template.get("body",""), lead)
+    body=body+get_email_footer(lead_id)
+    bcc_email,_=get_user_gmail(session_token)
+    result=send_via_resend(lead["email"], subject, body, bcc_email=bcc_email or None, lead_id=lead_id, reply_to=bcc_email or None)
+    if result["success"]:
+        db2=get_db(); c2=db2.cursor()
+        c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead_id,))
+        c2.execute("UPDATE email_templates SET use_count=use_count+1 WHERE id=%s",(tid,))
+        db2.commit(); c2.close(); db2.close()
+        return {"success":True,"message":f"Template sent to {lead['email']}","to":lead["email"]}
+    raise HTTPException(500,f"Failed to send: {result['error']}")
+
+@app.post("/campaigns/{campaign_id}/bulk-send-template/{tid}")
+async def bulk_send_template(campaign_id: int, tid: int, session_token: str = Cookie(default=None)):
+    """Bulk-send a saved template across all eligible ('new') leads in a campaign
+    — fixes 'no option to use a saved template on bulk / on a campaign' (previously
+    templates could only be loaded one-at-a-time into the individual send modal)."""
+    db=get_db(); c=db.cursor(dictionary=True)
+    c.execute("SELECT * FROM email_templates WHERE id=%s",(tid,))
+    template=c.fetchone()
+    if not template: c.close(); db.close(); raise HTTPException(404,"Template not found")
+    c.execute("SELECT * FROM campaigns WHERE id=%s",(campaign_id,))
+    campaign=c.fetchone()
+    if not campaign: c.close(); db.close(); raise HTTPException(404,"Campaign not found")
+    if campaign.get("is_paused"): c.close(); db.close(); return {"success":False,"message":"Campaign is paused. Resume it first.","sent":0}
+    today=date.today()
+    c.execute("""SELECT * FROM leads WHERE campaign_id=%s AND status='new'
+        AND email IS NOT NULL AND email != '' AND confidence_score >= %s
+        AND (cooldown_until IS NULL OR cooldown_until <= %s)""",(campaign_id,SEND_THRESHOLD,today))
+    eligible=c.fetchall(); c.close(); db.close()
+    if not eligible: return {"success":False,"message":"No eligible ('new') leads in this campaign.","sent":0}
+    bcc_email,_=get_user_gmail(session_token)
+    sent=0; failed=0
+    for lead in eligible:
+        try:
+            subject=personalize_template(template.get("subject",""), lead)
+            body=personalize_template(template.get("body",""), lead)
+            body=body+get_email_footer(lead["id"])
+            result=send_via_resend(lead["email"], subject, body, bcc_email=bcc_email or None, lead_id=lead["id"], reply_to=bcc_email or None)
+            if result["success"]:
+                db2=get_db(); c2=db2.cursor()
+                c2.execute("UPDATE leads SET status='emailed',emailed_at=NOW() WHERE id=%s",(lead["id"],))
+                db2.commit(); c2.close(); db2.close()
+                sent+=1
+            else: failed+=1
+            time.sleep(1)
+        except Exception as e:
+            print(f"[BulkTemplate] Error for lead {lead['id']}: {e}")
+            failed+=1
+    if sent>0:
+        db3=get_db(); c3=db3.cursor()
+        c3.execute("UPDATE email_templates SET use_count=use_count+%s WHERE id=%s",(sent,tid))
+        db3.commit(); c3.close(); db3.close()
+    return {"success":True,"message":f"Template sent to {sent} lead(s), {failed} failed","sent":sent,"failed":failed}
 
 # ═══════════════════════════════════════════════════════════════
 # CRITICAL FIX 2 — LEAD ACTIVITY LOG

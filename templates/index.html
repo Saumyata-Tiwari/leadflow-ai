@@ -451,7 +451,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <div class="seq-step"><div class="seq-dot">[.]</div><div class="seq-label">Close Out</div><div class="seq-day">Hard reject</div></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px;padding-top:20px;border-top:1px solid var(--dv)">
-      <div style="padding:16px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)"><div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Cold Email</div><div style="font-size:12px;color:var(--t2);line-height:1.8">Company-specific opener · Pre-vetted candidate pitch · Soft 15-min CTA · Industry-aware</div></div>
+      <div style="padding:16px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)"><div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Cold Email</div><div style="font-size:12px;color:var(--t2);line-height:1.8">Company-specific opener · Pre-vetted candidate pitch · Soft 30-min CTA · Industry-aware</div></div>
       <div style="padding:16px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)"><div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Day 3 Follow-up</div><div style="font-size:12px;color:var(--t2);line-height:1.8">References first email · New value angle · Different subject · Softer ask</div></div>
       <div style="padding:16px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)"><div style="font-size:10px;font-weight:700;color:#34D399;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Soft Rejection Handler</div><div style="font-size:12px;color:var(--t2);line-height:1.8">Warm and professional · Acknowledges timing · Leaves door open · No pressure</div></div>
       <div style="padding:16px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)"><div style="font-size:10px;font-weight:700;color:#F87171;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Hard Rejection Response</div><div style="font-size:12px;color:var(--t2);line-height:1.8">Graceful exit · Referral ask · No bridges burned · Professional close</div></div>
@@ -526,7 +526,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
     <div class="fm" style="margin-bottom:14px">
       <label>Your Context / Intent (optional)</label>
       <textarea id="seq-scenario" placeholder="Tell AI what you want to achieve:
-&#x2022; Introduce LeadFlow AI and ask for a 15-min demo
+&#x2022; Introduce LeadFlow AI and ask for a 30-min demo
 &#x2022; We have 3 pre-vetted IT recruiters available immediately
 &#x2022; I am a freelance designer looking for project work
 &#x2022; I am a final year CS student seeking internship
@@ -654,7 +654,7 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
       <div class="fm">
         <label>Calendly / Booking Link (optional)</label>
         <input type="url" id="set-calendly" placeholder="https://calendly.com/your-name/15min">
-        <div style="font-size:11px;color:var(--t3);margin-top:4px">Auto-appended to every email CTA — "Book a 15-min call here: [link]"</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:4px">Auto-appended to every email CTA — "Book a 30-min call here: [link]"</div>
       </div>
       <div class="fm">
         <label>Daily Email Send Limit (warm-up)</label>
@@ -1013,10 +1013,10 @@ async function loadDash(){
   try{
     const s=await fetch('/leads/stats').then(r=>r.json());
     document.getElementById('s-tot').textContent=s.total_leads||0;
-    document.getElementById('s-em').textContent=s.emailed||0;
+    document.getElementById('s-em').textContent=s.total_sent||0;
     document.getElementById('s-re').textContent=s.responded||0;
     document.getElementById('s-so').textContent=s.soft_rejection||0;
-    const rt=s.emailed>0?Math.round(((s.responded||0)/s.emailed)*100):0;
+    const rt=s.total_sent>0?Math.round(((s.responded||0)/s.total_sent)*100):0;
     document.getElementById('s-rt').textContent=rt+'%';
     const leads=await fetch('/leads').then(r=>r.json());
     const tb=document.getElementById('dash-tb');
@@ -1982,9 +1982,10 @@ function getChartColors(){
     purple: '#a78bfa',
     blue: '#60A5FA',
     red: '#F87171',
-    grid: isDark ? 'rgba(212,137,90,0.1)' : 'rgba(193,100,40,0.08)',
-    text: isDark ? 'rgba(242,224,200,0.5)' : 'rgba(44,26,14,0.5)',
+    grid: isDark ? 'rgba(212,137,90,0.18)' : 'rgba(193,100,40,0.08)',
+    text: isDark ? 'rgba(242,224,200,0.7)' : 'rgba(44,26,14,0.5)',
     bg: isDark ? '#2E2318' : '#EEE4D4',
+    fillOpacity: isDark ? 'DD' : '88',
   };
 }
 
@@ -2014,13 +2015,13 @@ async function loadDashCharts(){
       if(chartEmails) chartEmails.destroy();
       chartEmails = new Chart(ctxE,{
         type:'bar',
-        data:{labels:days,datasets:[{label:'Emails sent',data:dayCounts,backgroundColor:co.accent+'88',borderColor:co.accent,borderWidth:1,borderRadius:4}]},
+        data:{labels:days,datasets:[{label:'Emails sent',data:dayCounts,backgroundColor:co.accent+co.fillOpacity,borderColor:co.accent,borderWidth:1,borderRadius:4}]},
         options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{color:co.grid},ticks:{color:co.text,font:{size:10}}},y:{grid:{color:co.grid},ticks:{color:co.text,font:{size:10},stepSize:1},beginAtZero:true}}}
       });
     }
 
     const total=stats.total_leads||0;
-    const emailed=stats.emailed||0;
+    const emailed=stats.total_sent||0;
     const opened=leads.filter(l=>l.email_opened).length;
     const responded=stats.responded||0;
     const ctxF = document.getElementById('chart-funnel');
@@ -2030,7 +2031,7 @@ async function loadDashCharts(){
         type:'bar',
         data:{
           labels:['Total','Emailed','Opened','Replied'],
-          datasets:[{data:[total,emailed,opened,responded],backgroundColor:[co.blue+'88',co.accent+'88',co.purple+'88',co.green+'88'],borderColor:[co.blue,co.accent,co.purple,co.green],borderWidth:1,borderRadius:4}]
+          datasets:[{data:[total,emailed,opened,responded],backgroundColor:[co.blue+co.fillOpacity,co.accent+co.fillOpacity,co.purple+co.fillOpacity,co.green+co.fillOpacity],borderColor:[co.blue,co.accent,co.purple,co.green],borderWidth:1,borderRadius:4}]
         },
         options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{color:co.grid},ticks:{color:co.text,font:{size:10}}},y:{grid:{display:false},ticks:{color:co.text,font:{size:10}}}}}
       });
@@ -2144,11 +2145,56 @@ async function loadTemplates(){
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;margin-left:12px">
         <button class="btn bp xs" onclick="loadTemplateById(${t.id})">Use</button>
+        <button class="btn bw xs" onclick="openTemplateBulkSend(${t.id},'${safeName.replace(/'/g,"\\'")}')">&#9993; Send to Campaign</button>
         <button class="btn bd xs" onclick="deleteTemplate(${t.id})">&#10005;</button>
       </div>
     </div>`;
   }).join('');
   }catch(e){el.innerHTML='<div style="color:var(--red);font-size:12px">Error loading templates</div>';}
+}
+
+async function openTemplateBulkSend(tplId,tplName){
+  const camps=await fetch('/campaigns').then(r=>r.json());
+  const ex=document.getElementById('mo-tpl-bulk');if(ex)ex.remove();
+  const mo=document.createElement('div');mo.id='mo-tpl-bulk';mo.className='mo show';
+  const options=camps.length?camps.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''):'<option value="">No campaigns yet</option>';
+  mo.innerHTML=`<div class="modal" style="width:480px">
+    <div class="mh"><div class="mt">&#9993; Send Template to Campaign</div><button class="mcl" onclick="document.getElementById('mo-tpl-bulk').remove()">&#215;</button></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:10px 12px;background:var(--ib);border-radius:8px;border:1px solid var(--ic)">
+      Sends "<b style="color:var(--tx)">${tplName}</b>" as-is to every eligible ('new', never-emailed) lead in the selected campaign. {first_name}/{last_name}/{company}/{title} placeholders in your template are auto-filled per lead.
+    </div>
+    <div class="fm" style="margin-bottom:14px">
+      <label>Campaign</label>
+      <select id="tpl-bulk-camp">${options}</select>
+    </div>
+    <div id="tpl-bulk-progress" style="display:none;margin-bottom:10px">
+      <div style="font-size:12px;color:var(--t2)" id="tpl-bulk-status">Sending...</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bp" id="tpl-bulk-btn" onclick="executeTemplateBulkSend(${tplId})">&#9993; Send to Campaign &#8594;</button>
+      <button class="btn bo" onclick="document.getElementById('mo-tpl-bulk').remove()">Cancel</button>
+    </div>
+  </div>`;
+  document.body.appendChild(mo);
+}
+
+async function executeTemplateBulkSend(tplId){
+  const campId=document.getElementById('tpl-bulk-camp')?.value;
+  if(!campId){ntf('Select a campaign','error');return;}
+  const btn=document.getElementById('tpl-bulk-btn');
+  btn.textContent='Sending...';btn.disabled=true;
+  document.getElementById('tpl-bulk-progress').style.display='block';
+  document.getElementById('tpl-bulk-status').textContent='Sending template to eligible leads...';
+  try{
+    const r=await fetch('/campaigns/'+campId+'/bulk-send-template/'+tplId,{method:'POST'}).then(r=>r.json());
+    ntf(r.success?'✓ '+r.message:r.message||'Failed',r.success?'success':'error');
+    document.getElementById('tpl-bulk-status').textContent=r.message||'';
+    if(r.success){loadDash();setTimeout(()=>document.getElementById('mo-tpl-bulk')?.remove(),2000);}
+    else{btn.textContent='✉ Send to Campaign →';btn.disabled=false;}
+  }catch(e){
+    ntf('Send failed','error');
+    btn.textContent='✉ Send to Campaign →';btn.disabled=false;
+  }
 }
 
 async function saveTemplate(){
