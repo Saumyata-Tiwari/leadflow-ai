@@ -166,27 +166,6 @@ def scan_replies_background():
             print(f"[ReplyScan] Error: {e}")
         time.sleep(600)  # every 10 minutes
 
-
-    # Add new tracking columns if they don't exist
-    db=get_db(); c=db.cursor()
-    new_cols = [
-        "ALTER TABLE leads ADD COLUMN open_count INT DEFAULT 0",
-        "ALTER TABLE leads ADD COLUMN click_count INT DEFAULT 0", 
-        "ALTER TABLE leads ADD COLUMN last_opened_at TIMESTAMP NULL",
-        "ALTER TABLE leads ADD COLUMN last_clicked_at TIMESTAMP NULL",
-        "ALTER TABLE leads ADD COLUMN email_opened TINYINT(1) DEFAULT 0",
-        "ALTER TABLE leads ADD COLUMN email_clicked TINYINT(1) DEFAULT 0",
-        "ALTER TABLE leads ADD COLUMN email_bounced TINYINT(1) DEFAULT 0",
-        "ALTER TABLE leads ADD COLUMN ab_variant VARCHAR(1) DEFAULT NULL",
-        "ALTER TABLE campaigns ADD COLUMN soft_rejection_days INT DEFAULT 30",
-        "ALTER TABLE campaigns ADD COLUMN hard_rejection_days INT DEFAULT 90",
-        "CREATE TABLE IF NOT EXISTS warmup_settings (id INT AUTO_INCREMENT PRIMARY KEY, warmup_enabled TINYINT(1) DEFAULT 0, daily_limit INT DEFAULT 50, warmup_start_date DATE, warmup_week INT DEFAULT 0)",
-    ]
-    for sql in new_cols:
-        try: c.execute(sql); db.commit()
-        except: pass
-    c.close(); db.close()
-
 def init_db():
     db = get_db()
     cursor = db.cursor()
@@ -315,6 +294,18 @@ def init_db():
         "ALTER TABLE users ADD COLUMN reset_token_expires TIMESTAMP NULL DEFAULT NULL",
         "ALTER TABLE campaigns ADD COLUMN is_paused TINYINT(1) DEFAULT 0",
         "ALTER TABLE companies ADD COLUMN industry_focus VARCHAR(255) DEFAULT NULL",
+        # These were previously in a dead-code block (sat unreachable after time.sleep()
+        # inside an infinite while loop in scan_replies_background — never executed).
+        # Moving them here ensures they actually run on startup.
+        "ALTER TABLE leads ADD COLUMN open_count INT DEFAULT 0",
+        "ALTER TABLE leads ADD COLUMN click_count INT DEFAULT 0",
+        "ALTER TABLE leads ADD COLUMN last_opened_at TIMESTAMP NULL",
+        "ALTER TABLE leads ADD COLUMN last_clicked_at TIMESTAMP NULL",
+        "ALTER TABLE leads ADD COLUMN email_opened TINYINT(1) DEFAULT 0",
+        "ALTER TABLE leads ADD COLUMN email_clicked TINYINT(1) DEFAULT 0",
+        "ALTER TABLE leads ADD COLUMN email_bounced TINYINT(1) DEFAULT 0",
+        "ALTER TABLE leads ADD COLUMN ab_variant VARCHAR(1) DEFAULT NULL",
+        "CREATE TABLE IF NOT EXISTS warmup_settings (id INT AUTO_INCREMENT PRIMARY KEY, warmup_enabled TINYINT(1) DEFAULT 0, daily_limit INT DEFAULT 50, warmup_start_date DATE, warmup_week INT DEFAULT 0)",
     ]
     for sql in migrations:
         try:
