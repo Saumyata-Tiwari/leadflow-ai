@@ -2467,6 +2467,7 @@ async def import_csv(campaign_id: int, file: UploadFile = File(...)):
     camp=c.fetchone(); c.close(); db.close()
     target_role=camp["target_role"] if camp else ""
     imported=0; skipped=0
+    company_id_cache={}  # company name (lowercased) -> company_id, to avoid repeat lookups within this import
     db=get_db(); c=db.cursor()
     for row in reader:
         try:
@@ -2481,7 +2482,24 @@ async def import_csv(campaign_id: int, file: UploadFile = File(...)):
             if email:
                 c.execute("SELECT id FROM leads WHERE email=%s AND campaign_id=%s",(email,campaign_id))
                 if c.fetchone(): skipped+=1; continue
-            c.execute("INSERT INTO leads (first_name,last_name,full_name,title,company,email,linkedin_url,location,target_role,campaign_id,status,email_source,confidence_score,notes) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'new','csv_import',80,'CSV import')",(fn,ln,full,title,company,email,li,loc,target_role,campaign_id))
+            # Link this lead to a Company row so it shows up in the Saved Companies "Contacts" count
+            # (previously CSV-imported leads had company_id=NULL and were invisible there, even
+            # though they correctly counted toward the campaign's total lead count).
+            company_id=None
+            if company:
+                key=company.lower()
+                if key in company_id_cache:
+                    company_id=company_id_cache[key]
+                else:
+                    c.execute("SELECT id FROM companies WHERE campaign_id=%s AND LOWER(name)=%s",(campaign_id,key))
+                    existing=c.fetchone()
+                    if existing:
+                        company_id=existing[0]
+                    else:
+                        c.execute("INSERT INTO companies (campaign_id,name,source) VALUES (%s,%s,'csv_import')",(campaign_id,company))
+                        company_id=c.lastrowid
+                    company_id_cache[key]=company_id
+            c.execute("INSERT INTO leads (first_name,last_name,full_name,title,company,email,linkedin_url,location,target_role,campaign_id,company_id,status,email_source,confidence_score,notes) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'new','csv_import',80,'CSV import')",(fn,ln,full,title,company,email,li,loc,target_role,campaign_id,company_id))
             imported+=1
         except: skipped+=1
     db.commit(); c.close(); db.close()
