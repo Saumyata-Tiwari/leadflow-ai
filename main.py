@@ -2396,6 +2396,55 @@ def add_email_footer(body: str, lead_id: int, base_url: str = None) -> str:
     return body + f"\n\n--\nTo unsubscribe: {unsub_url}\n{pixel}"
 
 # ── CHECK BOUNCES ─────────────────────────────────────────────
+@app.post("/sync-resend-bounces")
+async def sync_resend_bounces():
+    """
+    One-time (or repeatable) sync that pulls real send history directly from
+    Resend's API and updates any leads whose emails actually bounced — fixes
+    the gap where the old Gmail-scan 'Check Bounces' button can never see
+    real Resend bounces (see check_bounces docstring above), AND covers
+    bounces that happened BEFORE the /webhooks/resend endpoint was configured
+    (which only catches events going forward, not historical ones).
+    """
+    api_key = os.getenv("RESEND_API_KEY", "")
+    if not api_key:
+        return {"success": False, "message": "RESEND_API_KEY not configured"}
+    bounced_found = []
+    try:
+        cursor_after = None
+        pages_checked = 0
+        while pages_checked < 10:  # cap at 10 pages (~200 emails) to keep this fast
+            params = {"limit": 20}
+            if cursor_after: params["after"] = cursor_after
+            r = requests.get("https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {api_key}"}, params=params, timeout=15)
+            if r.status_code != 200:
+                break
+            d = r.json()
+            emails_list = d.get("data", [])
+            if not emails_list: break
+            for email_obj in emails_list:
+                status = (email_obj.get("last_event") or email_obj.get("status") or "").lower()
+                if status == "bounced":
+                    recipients = email_obj.get("to", [])
+                    if isinstance(recipients, str): recipients = [recipients]
+                    for recipient in recipients:
+                        db=get_db(); c=db.cursor(dictionary=True)
+                        c.execute("SELECT id, full_name FROM leads WHERE email=%s AND status NOT IN ('unsubscribed','rejected')",(recipient,))
+                        lead=c.fetchone(); c.close(); db.close()
+                        if lead:
+                            db2=get_db(); c2=db2.cursor()
+                            c2.execute("UPDATE leads SET email_bounced=1,status='rejected' WHERE id=%s",(lead["id"],))
+                            db2.commit(); c2.close(); db2.close()
+                            bounced_found.append({"name":lead["full_name"],"email":recipient})
+            if not d.get("has_more"): break
+            cursor_after = emails_list[-1].get("id")
+            pages_checked += 1
+    except Exception as e:
+        return {"success": False, "message": str(e), "bounced_found": bounced_found}
+    return {"success": True, "bounced_count": len(bounced_found), "bounced": bounced_found,
+            "message": f"Synced from Resend: {len(bounced_found)} bounced lead(s) found and marked"}
+
 @app.post("/check-bounces")
 async def check_bounces():
     db=get_db(); c=db.cursor(dictionary=True)

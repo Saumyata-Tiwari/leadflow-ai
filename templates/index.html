@@ -694,7 +694,8 @@ tr:hover td{background:var(--ch);}tr:last-child td{border-bottom:none;}td b{colo
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn bp sm" onclick="saveDeliverabilitySettings()">Save Settings &#8594;</button>
       <button class="btn bo sm" onclick="checkBlacklist()">⚠ Check Blacklist</button>
-      <button class="btn bo sm" onclick="checkBounces()">⚠ Scan Bounces</button>
+      <button class="btn bo sm" onclick="checkBounces()">⚠ Scan Bounces (Gmail)</button>
+      <button class="btn bw sm" onclick="syncResendBounces()">🔄 Sync Bounces from Resend</button>
     </div>
     <div id="deliverability-result" style="margin-top:10px"></div>
   </div>
@@ -1945,6 +1946,14 @@ async function checkBounces(){
     ntf(r.success?(r.bounced_count>0?'⚠ '+r.message:'✓ No bounced emails found'):(r.message||'Failed'),r.bounced_count>0?'warning':'success');
     if(r.success&&r.bounced_count>0)loadDash();
   }catch(e){ntf('Scan failed','error');}
+}
+async function syncResendBounces(){
+  ntf('Syncing bounce data from Resend...','warning');
+  try{
+    const r=await fetch('/sync-resend-bounces',{method:'POST'}).then(r=>r.json());
+    ntf(r.success?(r.bounced_count>0?'⚠ '+r.message:'✓ No bounces found in Resend history'):(r.message||'Failed'),r.bounced_count>0?'warning':'success');
+    if(r.success&&r.bounced_count>0)loadDash();
+  }catch(e){ntf('Sync failed','error');}
 }
 async function saveDeliverabilitySettings(){
   const limit=parseInt(document.getElementById('warmup-limit')?.value)||50;
