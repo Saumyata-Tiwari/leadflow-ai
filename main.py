@@ -294,6 +294,7 @@ def init_db():
         "ALTER TABLE users ADD COLUMN reset_token_expires TIMESTAMP NULL DEFAULT NULL",
         "ALTER TABLE campaigns ADD COLUMN is_paused TINYINT(1) DEFAULT 0",
         "ALTER TABLE companies ADD COLUMN industry_focus VARCHAR(255) DEFAULT NULL",
+        "ALTER TABLE campaigns ADD COLUMN user_id INT DEFAULT NULL",
         # These were previously in a dead-code block (sat unreachable after time.sleep()
         # inside an infinite while loop in scan_replies_background — never executed).
         # Moving them here ensures they actually run on startup.
@@ -313,6 +314,18 @@ def init_db():
             db.commit()
         except:
             pass
+    # One-time backfill: any campaign created before user_id existed (NULL owner)
+    # gets assigned to the first admin account, so it doesn't silently become
+    # invisible to its actual owner once ownership-based filtering goes live.
+    try:
+        cursor.execute("SELECT id FROM users WHERE role='admin' ORDER BY id ASC LIMIT 1")
+        admin_row = cursor.fetchone()
+        if admin_row:
+            admin_id = admin_row[0]
+            cursor.execute("UPDATE campaigns SET user_id=%s WHERE user_id IS NULL", (admin_id,))
+            db.commit()
+    except Exception as e:
+        print(f"[Migration] Campaign ownership backfill skipped: {e}")
     cursor.close()
     db.close()
 
@@ -341,6 +354,34 @@ def get_current_user(session_token: str = Cookie(default=None)):
     cursor.execute("SELECT * FROM users WHERE session_token=%s", (session_token,))
     user = cursor.fetchone(); cursor.close(); db.close()
     return user
+
+def campaign_access_filter(user, table_alias="c"):
+    """
+    Returns (where_sql, params) implementing: admins see every campaign,
+    members see only campaigns they created. This is the access model
+    already described in the Invite Team Member UI ('Admin — sees all
+    campaigns' / 'Member — own campaigns only') but was never actually
+    enforced anywhere — every list/detail endpoint returned ALL campaigns,
+    leads, and companies to ANY logged-in user regardless of role, including
+    a brand-new self-registered account. If user is None (no valid session),
+    returns a filter that matches nothing, since anonymous access should see
+    no private data at all.
+    """
+    if not user:
+        return f"{table_alias}.id = -1", []
+    if user.get("role") == "admin":
+        return "1=1", []
+    return f"{table_alias}.user_id = %s", [user["id"]]
+
+def can_access_campaign(campaign_id, user):
+    """For write operations (update/delete) — confirms the requesting user
+    either owns this campaign or is an admin, before allowing the change."""
+    if not user: return False
+    if user.get("role") == "admin": return True
+    db=get_db(); cursor=db.cursor(dictionary=True)
+    cursor.execute("SELECT user_id FROM campaigns WHERE id=%s", (campaign_id,))
+    row = cursor.fetchone(); cursor.close(); db.close()
+    return bool(row) and row.get("user_id") == user["id"]
 
 class AuthRequest(BaseModel):
     username: str
@@ -1039,10 +1080,12 @@ async def home(session_token: str = Cookie(default=None)):
     with open("templates/index.html", encoding="utf-8") as f: return HTMLResponse(f.read())
 
 @app.post("/campaigns")
-async def create_campaign(campaign: CampaignCreate):
+async def create_campaign(campaign: CampaignCreate, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    owner_id = user["id"] if user else None
     db = get_db(); cursor = db.cursor()
-    cursor.execute("""INSERT INTO campaigns (name,target_role,target_location,company_size_min,company_size_max,min_salary,excluded_industries,exclude_intern,exclude_remote,exclude_apprentice,job_date_filter,notes) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-        (campaign.name,campaign.target_role,campaign.target_location,campaign.company_size_min,campaign.company_size_max,campaign.min_salary,campaign.excluded_industries,campaign.exclude_intern,campaign.exclude_remote,campaign.exclude_apprentice,campaign.job_date_filter,campaign.notes))
+    cursor.execute("""INSERT INTO campaigns (name,target_role,target_location,company_size_min,company_size_max,min_salary,excluded_industries,exclude_intern,exclude_remote,exclude_apprentice,job_date_filter,notes,user_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+        (campaign.name,campaign.target_role,campaign.target_location,campaign.company_size_min,campaign.company_size_max,campaign.min_salary,campaign.excluded_industries,campaign.exclude_intern,campaign.exclude_remote,campaign.exclude_apprentice,campaign.job_date_filter,campaign.notes,owner_id))
     db.commit(); cid=cursor.lastrowid; cursor.close()
     if campaign.industry_focus:
         try:
@@ -1059,23 +1102,30 @@ async def create_campaign(campaign: CampaignCreate):
     return {"message":"Campaign created!","id":cid}
 
 @app.get("/campaigns")
-async def get_campaigns():
+async def get_campaigns(session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    where_sql, params = campaign_access_filter(user, "c")
     db=get_db(); cursor=db.cursor(dictionary=True)
-    cursor.execute("""SELECT c.*,COUNT(DISTINCT comp.id) as total_companies,COUNT(DISTINCT l.id) as total_leads,
+    cursor.execute(f"""SELECT c.*,COUNT(DISTINCT comp.id) as total_companies,COUNT(DISTINCT l.id) as total_leads,
         SUM(CASE WHEN l.status='emailed' THEN 1 ELSE 0 END) as emailed,SUM(CASE WHEN l.status='responded' THEN 1 ELSE 0 END) as responded
-        FROM campaigns c LEFT JOIN companies comp ON comp.campaign_id=c.id LEFT JOIN leads l ON l.campaign_id=c.id GROUP BY c.id ORDER BY c.created_at DESC""")
+        FROM campaigns c LEFT JOIN companies comp ON comp.campaign_id=c.id LEFT JOIN leads l ON l.campaign_id=c.id
+        WHERE {where_sql} GROUP BY c.id ORDER BY c.created_at DESC""", params)
     result=cursor.fetchall(); cursor.close(); db.close(); return result
 
 @app.get("/campaigns/{campaign_id}")
-async def get_campaign(campaign_id: int):
+async def get_campaign(campaign_id: int, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    where_sql, params = campaign_access_filter(user, "c")
     db=get_db(); cursor=db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM campaigns WHERE id=%s",(campaign_id,))
+    cursor.execute(f"SELECT c.* FROM campaigns c WHERE c.id=%s AND {where_sql}",[campaign_id]+params)
     c=cursor.fetchone(); cursor.close(); db.close()
     if not c: raise HTTPException(404,"Campaign not found")
     return c
 
 @app.put("/campaigns/{campaign_id}")
-async def update_campaign(campaign_id: int, campaign: CampaignCreate):
+async def update_campaign(campaign_id: int, campaign: CampaignCreate, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); cursor=db.cursor()
     cursor.execute("""UPDATE campaigns SET name=%s,target_role=%s,target_location=%s,company_size_min=%s,company_size_max=%s,min_salary=%s,excluded_industries=%s,exclude_intern=%s,exclude_remote=%s,exclude_apprentice=%s,job_date_filter=%s,notes=%s WHERE id=%s""",
         (campaign.name,campaign.target_role,campaign.target_location,campaign.company_size_min,campaign.company_size_max,campaign.min_salary,campaign.excluded_industries,campaign.exclude_intern,campaign.exclude_remote,campaign.exclude_apprentice,campaign.job_date_filter,campaign.notes,campaign_id))
@@ -1086,7 +1136,9 @@ async def update_campaign(campaign_id: int, campaign: CampaignCreate):
     db.commit(); cursor.close(); db.close(); return {"message":"Campaign updated!"}
 
 @app.delete("/campaigns/{campaign_id}")
-async def delete_campaign(campaign_id: int):
+async def delete_campaign(campaign_id: int, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); cursor=db.cursor()
     cursor.execute("DELETE FROM campaigns WHERE id=%s",(campaign_id,))
     db.commit(); cursor.close(); db.close(); return {"message":"Campaign deleted"}
@@ -1329,13 +1381,17 @@ def autofind_contacts_for_companies(company_ids: list, campaign_id: int):
 
 
 @app.get("/companies")
-async def get_companies(campaign_id: Optional[int] = None):
+async def get_companies(campaign_id: Optional[int] = None, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
     db=get_db(); cursor=db.cursor(dictionary=True)
     if campaign_id:
+        if not can_access_campaign(campaign_id, user):
+            cursor.close(); db.close(); raise HTTPException(403,"Not authorized for this campaign")
         cursor.execute("""SELECT comp.*,COUNT(l.id) as total_contacts,SUM(CASE WHEN l.status='responded' THEN 1 ELSE 0 END) as responded,SUM(CASE WHEN l.status='emailed' THEN 1 ELSE 0 END) as emailed
             FROM companies comp LEFT JOIN leads l ON l.company_id=comp.id WHERE comp.campaign_id=%s GROUP BY comp.id ORDER BY comp.created_at DESC""",(campaign_id,))
     else:
-        cursor.execute("""SELECT comp.*,c.name as campaign_name,COUNT(l.id) as total_contacts FROM companies comp LEFT JOIN campaigns c ON c.id=comp.campaign_id LEFT JOIN leads l ON l.company_id=comp.id GROUP BY comp.id ORDER BY comp.created_at DESC""")
+        where_sql, params = campaign_access_filter(user, "c")
+        cursor.execute(f"""SELECT comp.*,c.name as campaign_name,COUNT(l.id) as total_contacts FROM companies comp LEFT JOIN campaigns c ON c.id=comp.campaign_id LEFT JOIN leads l ON l.company_id=comp.id WHERE {where_sql} GROUP BY comp.id ORDER BY comp.created_at DESC""", params)
     result=cursor.fetchall(); cursor.close(); db.close(); return result
 
 @app.get("/lookup-domain")
@@ -1519,9 +1575,11 @@ async def create_lead(lead: LeadCreate):
     db.commit(); lid=cursor.lastrowid; cursor.close(); db.close(); return {"message":"Lead added!","id":lid}
 
 @app.get("/leads/stats")
-async def get_stats():
+async def get_stats(session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    where_sql, params = campaign_access_filter(user, "c")
     db=get_db(); cursor=db.cursor(dictionary=True)
-    cursor.execute("""SELECT COUNT(*) as total_leads,COALESCE(SUM(CASE WHEN status='new' THEN 1 ELSE 0 END),0) as new_leads,COALESCE(SUM(CASE WHEN status='emailed' THEN 1 ELSE 0 END),0) as emailed,COALESCE(SUM(CASE WHEN emailed_at IS NOT NULL THEN 1 ELSE 0 END),0) as total_sent,COALESCE(SUM(CASE WHEN status='responded' THEN 1 ELSE 0 END),0) as responded,COALESCE(SUM(CASE WHEN status='soft_rejection' THEN 1 ELSE 0 END),0) as soft_rejection,COALESCE(SUM(CASE WHEN status='rejected' THEN 1 ELSE 0 END),0) as rejected,COALESCE(SUM(CASE WHEN status='unsubscribed' THEN 1 ELSE 0 END),0) as unsubscribed,COALESCE(SUM(CASE WHEN status='no_response' THEN 1 ELSE 0 END),0) as no_response FROM leads""")
+    cursor.execute(f"""SELECT COUNT(*) as total_leads,COALESCE(SUM(CASE WHEN l.status='new' THEN 1 ELSE 0 END),0) as new_leads,COALESCE(SUM(CASE WHEN l.status='emailed' THEN 1 ELSE 0 END),0) as emailed,COALESCE(SUM(CASE WHEN l.emailed_at IS NOT NULL THEN 1 ELSE 0 END),0) as total_sent,COALESCE(SUM(CASE WHEN l.status='responded' THEN 1 ELSE 0 END),0) as responded,COALESCE(SUM(CASE WHEN l.status='soft_rejection' THEN 1 ELSE 0 END),0) as soft_rejection,COALESCE(SUM(CASE WHEN l.status='rejected' THEN 1 ELSE 0 END),0) as rejected,COALESCE(SUM(CASE WHEN l.status='unsubscribed' THEN 1 ELSE 0 END),0) as unsubscribed,COALESCE(SUM(CASE WHEN l.status='no_response' THEN 1 ELSE 0 END),0) as no_response FROM leads l LEFT JOIN campaigns c ON c.id=l.campaign_id WHERE {where_sql}""", params)
     r=cursor.fetchone(); cursor.close(); db.close(); return r
 
 
@@ -1542,8 +1600,10 @@ async def cleanup_low_confidence(campaign_id: int = 0):
 
 
 @app.get("/campaigns/{campaign_id}/leads-by-role")
-async def get_leads_by_role(campaign_id: int):
+async def get_leads_by_role(campaign_id: int, session_token: str = Cookie(default=None)):
     """Returns unique titles saved in a campaign's leads"""
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); cursor=db.cursor(dictionary=True)
     cursor.execute("""
         SELECT DISTINCT l.title, COUNT(*) as count
@@ -1739,19 +1799,22 @@ async def save_warmup_settings(limit: int = Body(..., embed=True)):
     return {"success": True, "daily_limit": limit}
 
 @app.get("/leads")
-async def get_leads(campaign_id: Optional[int] = None, company_id: Optional[int] = None):
+async def get_leads(campaign_id: Optional[int] = None, company_id: Optional[int] = None, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    where_sql, params = campaign_access_filter(user, "c")
     db=get_db(); cursor=db.cursor(dictionary=True)
-    q="SELECT l.*,c.name as campaign_name FROM leads l LEFT JOIN campaigns c ON c.id=l.campaign_id LEFT JOIN companies comp ON comp.id=l.company_id WHERE 1=1"
-    params=[]
+    q=f"SELECT l.*,c.name as campaign_name FROM leads l LEFT JOIN campaigns c ON c.id=l.campaign_id LEFT JOIN companies comp ON comp.id=l.company_id WHERE {where_sql}"
     if campaign_id: q+=" AND l.campaign_id=%s"; params.append(campaign_id)
     if company_id: q+=" AND l.company_id=%s"; params.append(company_id)
     q+=" ORDER BY l.created_at DESC"
     cursor.execute(q,params); result=cursor.fetchall(); cursor.close(); db.close(); return result
 
 @app.get("/leads/{lead_id}")
-async def get_lead(lead_id: int):
+async def get_lead(lead_id: int, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    where_sql, params = campaign_access_filter(user, "c")
     db=get_db(); cursor=db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM leads WHERE id=%s",(lead_id,))
+    cursor.execute(f"SELECT l.* FROM leads l LEFT JOIN campaigns c ON c.id=l.campaign_id WHERE l.id=%s AND {where_sql}",[lead_id]+params)
     l=cursor.fetchone(); cursor.close(); db.close()
     if not l: raise HTTPException(404,"Lead not found")
     return l
@@ -2016,19 +2079,22 @@ async def search_companies_global(q: str = ""):
     return results[:15]
 
 @app.get("/analytics")
-async def get_analytics():
+async def get_analytics(session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    where_sql, params = campaign_access_filter(user, "c")
     db=get_db(); cursor=db.cursor(dictionary=True)
-    cursor.execute("""SELECT COUNT(*) as total_leads,SUM(CASE WHEN status='emailed' THEN 1 ELSE 0 END) as total_sent,SUM(CASE WHEN status='responded' THEN 1 ELSE 0 END) as total_replied,SUM(CASE WHEN status='soft_rejection' THEN 1 ELSE 0 END) as soft_rejections,SUM(CASE WHEN status='rejected' THEN 1 ELSE 0 END) as hard_rejections,SUM(CASE WHEN email_verified=1 THEN 1 ELSE 0 END) as verified_emails,AVG(confidence_score) as avg_confidence FROM leads""")
+    cursor.execute(f"""SELECT COUNT(*) as total_leads,SUM(CASE WHEN l.status='emailed' THEN 1 ELSE 0 END) as total_sent,SUM(CASE WHEN l.status='responded' THEN 1 ELSE 0 END) as total_replied,SUM(CASE WHEN l.status='soft_rejection' THEN 1 ELSE 0 END) as soft_rejections,SUM(CASE WHEN l.status='rejected' THEN 1 ELSE 0 END) as hard_rejections,SUM(CASE WHEN l.email_verified=1 THEN 1 ELSE 0 END) as verified_emails,AVG(l.confidence_score) as avg_confidence FROM leads l LEFT JOIN campaigns c ON c.id=l.campaign_id WHERE {where_sql}""", params)
     stats=cursor.fetchone()
     sent=stats.get("total_sent") or 0; replied=stats.get("total_replied") or 0
     stats["response_rate"]=round((replied/sent*100),1) if sent>0 else 0
     cursor.close(); db.close(); return stats
 
 @app.get("/leads/export/csv")
-async def export_csv(campaign_id: Optional[int] = None, verified_only: bool = False):
+async def export_csv(campaign_id: Optional[int] = None, verified_only: bool = False, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    where_sql, params = campaign_access_filter(user, "c")
     db=get_db(); cursor=db.cursor(dictionary=True)
-    q="""SELECT c.name as campaign,comp.name as company,comp.salary_range,l.first_name,l.last_name,l.title,l.target_role,l.linkedin_url,l.email,l.email_source,l.confidence_score,CASE WHEN l.email_verified=1 THEN 'Verified' ELSE 'Unverified' END as email_status,l.location,l.status,l.cooldown_until,l.emailed_at,l.created_at FROM leads l LEFT JOIN campaigns c ON c.id=l.campaign_id LEFT JOIN companies comp ON comp.id=l.company_id WHERE 1=1"""
-    params=[]
+    q=f"""SELECT c.name as campaign,comp.name as company,comp.salary_range,l.first_name,l.last_name,l.title,l.target_role,l.linkedin_url,l.email,l.email_source,l.confidence_score,CASE WHEN l.email_verified=1 THEN 'Verified' ELSE 'Unverified' END as email_status,l.location,l.status,l.cooldown_until,l.emailed_at,l.created_at FROM leads l LEFT JOIN campaigns c ON c.id=l.campaign_id LEFT JOIN companies comp ON comp.id=l.company_id WHERE {where_sql}"""
     if campaign_id: q+=" AND l.campaign_id=%s"; params.append(campaign_id)
     if verified_only: q+=" AND l.email_verified=1"
     q+=" ORDER BY l.created_at DESC"
