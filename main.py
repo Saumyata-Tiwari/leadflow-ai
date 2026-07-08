@@ -383,6 +383,28 @@ def can_access_campaign(campaign_id, user):
     row = cursor.fetchone(); cursor.close(); db.close()
     return bool(row) and row.get("user_id") == user["id"]
 
+def can_access_company(company_id, user):
+    """Same as can_access_campaign, but for endpoints that only have a
+    company_id — looks up which campaign that company belongs to first."""
+    if not user: return False
+    if user.get("role") == "admin": return True
+    db=get_db(); cursor=db.cursor(dictionary=True)
+    cursor.execute("""SELECT c.user_id FROM companies comp
+        LEFT JOIN campaigns c ON c.id=comp.campaign_id WHERE comp.id=%s""", (company_id,))
+    row = cursor.fetchone(); cursor.close(); db.close()
+    return bool(row) and row.get("user_id") == user["id"]
+
+def can_access_lead(lead_id, user):
+    """Same pattern for endpoints keyed on lead_id — looks up the lead's
+    campaign, then checks ownership of that campaign."""
+    if not user: return False
+    if user.get("role") == "admin": return True
+    db=get_db(); cursor=db.cursor(dictionary=True)
+    cursor.execute("""SELECT c.user_id FROM leads l
+        LEFT JOIN campaigns c ON c.id=l.campaign_id WHERE l.id=%s""", (lead_id,))
+    row = cursor.fetchone(); cursor.close(); db.close()
+    return bool(row) and row.get("user_id") == user["id"]
+
 class AuthRequest(BaseModel):
     username: str
     email: Optional[str] = None
@@ -1153,7 +1175,9 @@ async def delete_campaign(campaign_id: int, session_token: str = Cookie(default=
     db.commit(); cursor.close(); db.close(); return {"message":"Campaign deleted"}
 
 @app.get("/search-jobs/{campaign_id}")
-async def search_jobs(campaign_id: int, page: int = 1):
+async def search_jobs(campaign_id: int, page: int = 1, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); cursor=db.cursor(dictionary=True)
     cursor.execute("SELECT * FROM campaigns WHERE id=%s",(campaign_id,))
     c=cursor.fetchone(); cursor.close(); db.close()
@@ -1187,7 +1211,9 @@ async def salary_suggestion(role: str, location: str = "United States"):
     return {"suggested_salary":ai,"median_salary":ai,"source":"AI","message":f"AI suggested: ${ai:,}/yr"}
 
 @app.post("/companies")
-async def create_company(company: CompanyCreate, background_tasks: BackgroundTasks):
+async def create_company(company: CompanyCreate, background_tasks: BackgroundTasks, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(company.campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); cursor=db.cursor()
     cursor.execute("INSERT INTO companies (campaign_id,name,industry,location,size_range,website,job_title,salary_range,job_posted,source,notes) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
         (company.campaign_id,company.name,company.industry,company.location,company.size_range,company.website,company.job_title,company.salary_range,company.job_posted,company.source,company.notes))
@@ -1196,7 +1222,9 @@ async def create_company(company: CompanyCreate, background_tasks: BackgroundTas
     return {"message":"Company added! Finding contacts in background...","id":cid}
 
 @app.post("/companies/bulk")
-async def bulk_add_companies(data: CompanyBulkAdd, background_tasks: BackgroundTasks):
+async def bulk_add_companies(data: CompanyBulkAdd, background_tasks: BackgroundTasks, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(data.campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); cursor=db.cursor(); added=0; saved_ids=[]
     for co in data.companies:
         cursor.execute(
@@ -1422,7 +1450,9 @@ async def find_email_by_name(first_name: str, last_name: str, domain: str):
     return {"found":False,"email":"","confidence_score":0,"message":"Email not found. Enter manually."}
 
 @app.post("/companies/{company_id}/auto-find-contacts")
-async def auto_find_contacts(company_id: int, domain_override: str = ""):
+async def auto_find_contacts(company_id: int, domain_override: str = "", session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_company(company_id, user): raise HTTPException(403,"Not authorized for this company")
     db=get_db(); cursor=db.cursor(dictionary=True)
     cursor.execute("SELECT * FROM companies WHERE id=%s",(company_id,))
     company=cursor.fetchone()
@@ -1517,12 +1547,14 @@ async def auto_find_contacts(company_id: int, domain_override: str = ""):
     return {"success":True,"contacts_added":added,"contacts_skipped":skipped,"total_found":len(all_people),"people":enriched,"message":f"Found {len(all_people)} decision makers at {company_name}, saved {added}"}
 
 @app.patch("/companies/{company_id}/enrich")
-async def enrich_company(company_id: int):
+async def enrich_company(company_id: int, session_token: str = Cookie(default=None)):
     """
     Fills in missing company data (domain/website, industry, revenue) using
     Clearbit + Apollo. Called by the 'Enrich' button on the company row —
     this endpoint was missing before, causing that button to 404.
     """
+    user = get_current_user(session_token)
+    if not can_access_company(company_id, user): raise HTTPException(403,"Not authorized for this company")
     db=get_db(); c=db.cursor(dictionary=True)
     c.execute("SELECT * FROM companies WHERE id=%s",(company_id,))
     company=c.fetchone(); c.close(); db.close()
@@ -1570,7 +1602,9 @@ async def enrich_company(company_id: int):
             "message":f"Enriched: {', '.join(updated_labels)}" if updated_labels else "No new data found"}
 
 @app.delete("/companies/{company_id}")
-async def delete_company(company_id: int):
+async def delete_company(company_id: int, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_company(company_id, user): raise HTTPException(403,"Not authorized for this company")
     db=get_db(); cursor=db.cursor()
     cursor.execute("DELETE FROM leads WHERE company_id=%s",(company_id,))
     cursor.execute("DELETE FROM companies WHERE id=%s",(company_id,))
@@ -1593,14 +1627,21 @@ async def get_stats(session_token: str = Cookie(default=None)):
 
 
 @app.post("/leads/cleanup-low-confidence")
-async def cleanup_low_confidence(campaign_id: int = 0):
+async def cleanup_low_confidence(campaign_id: int = 0, session_token: str = Cookie(default=None)):
     """Delete saved leads that have email but confidence < 70"""
+    user = get_current_user(session_token)
     db=get_db(); cursor=db.cursor()
     if campaign_id:
+        if not can_access_campaign(campaign_id, user):
+            cursor.close(); db.close(); raise HTTPException(403,"Not authorized for this campaign")
         cursor.execute(
             "DELETE FROM leads WHERE confidence_score < 70 AND email != '' AND email IS NOT NULL AND campaign_id=%s",
             (campaign_id,))
     else:
+        # campaign_id=0 means "clean up across ALL campaigns" — only an admin should
+        # be able to trigger something this broad/destructive.
+        if not user or user.get("role") != "admin":
+            cursor.close(); db.close(); raise HTTPException(403,"Admin access required for account-wide cleanup")
         cursor.execute(
             "DELETE FROM leads WHERE confidence_score < 70 AND email != '' AND email IS NOT NULL")
     deleted = cursor.rowcount
@@ -1626,8 +1667,10 @@ async def get_leads_by_role(campaign_id: int, session_token: str = Cookie(defaul
     return {"roles": roles, "total_roles": len(roles)}
 
 @app.post("/campaigns/{campaign_id}/bulk-send-by-role")
-async def bulk_send_by_role(campaign_id: int, request: BulkEmailRequest, background_tasks: BackgroundTasks):
+async def bulk_send_by_role(campaign_id: int, request: BulkEmailRequest, background_tasks: BackgroundTasks, session_token: str = Cookie(default=None)):
     """Bulk send email to leads of a specific role/title in a campaign"""
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     if not request.title_filter:
         raise HTTPException(400, "title_filter is required for role-based bulk send")
 
@@ -1829,7 +1872,9 @@ async def get_lead(lead_id: int, session_token: str = Cookie(default=None)):
     return l
 
 @app.put("/leads/{lead_id}/status")
-async def update_lead_status(lead_id: int, body: StatusUpdate):
+async def update_lead_status(lead_id: int, body: StatusUpdate, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_lead(lead_id, user): raise HTTPException(403,"Not authorized for this lead")
     new_status=body.status
     db=get_db(); cursor=db.cursor(dictionary=True)
     cursor.execute("SELECT l.*,c.soft_rejection_days,c.hard_rejection_days FROM leads l LEFT JOIN campaigns c ON c.id=l.campaign_id WHERE l.id=%s",(lead_id,))
@@ -1848,7 +1893,9 @@ async def update_lead_status(lead_id: int, body: StatusUpdate):
     return {"message":f"Status: {new_status}","cooldown_until":cooldown_until}
 
 @app.put("/leads/{lead_id}")
-async def update_lead(lead_id: int, body: dict):
+async def update_lead(lead_id: int, body: dict, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_lead(lead_id, user): raise HTTPException(403,"Not authorized for this lead")
     db=get_db(); cursor=db.cursor()
     allowed=['first_name','last_name','title','email','linkedin_url','location','target_role','notes']
     fields=[f"{f}=%s" for f in allowed if f in body]; values=[body[f] for f in allowed if f in body]
@@ -1864,7 +1911,9 @@ async def update_lead(lead_id: int, body: dict):
     db.commit(); cursor.close(); db.close(); return {"message":"Lead updated"}
 
 @app.delete("/leads/{lead_id}")
-async def delete_lead(lead_id: int):
+async def delete_lead(lead_id: int, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_lead(lead_id, user): raise HTTPException(403,"Not authorized for this lead")
     db=get_db(); cursor=db.cursor()
     cursor.execute("DELETE FROM emails WHERE lead_id=%s",(lead_id,))
     cursor.execute("DELETE FROM leads WHERE id=%s",(lead_id,))
@@ -2159,7 +2208,9 @@ async def guess_emails_endpoint(first_name: str, last_name: str, domain: str):
     return {"patterns":patterns,"warning":"These are guesses — DO NOT auto-send","confirmed":snov.get("email","") if snov.get("found") else ""}
 
 @app.get("/companies/{company_id}/find-person")
-async def find_specific_person(company_id: int, query: str = ""):
+async def find_specific_person(company_id: int, query: str = "", session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_company(company_id, user): raise HTTPException(403,"Not authorized for this company")
     if not query or len(query)<2: return {"found":False,"people":[],"message":"Enter a name, title, or email"}
     db=get_db(); cursor=db.cursor(dictionary=True)
     cursor.execute("SELECT * FROM companies WHERE id=%s",(company_id,))
@@ -2197,6 +2248,8 @@ async def find_specific_person(company_id: int, query: str = ""):
 # ── SEND EMAIL ────────────────────────────────────────────────────
 @app.post("/leads/{lead_id}/send-email")
 async def send_email(lead_id: int, request: SendEmailRequest, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_lead(lead_id, user): raise HTTPException(403,"Not authorized for this lead")
     db=get_db(); cursor=db.cursor(dictionary=True)
     cursor.execute("SELECT * FROM leads WHERE id=%s",(lead_id,))
     lead=cursor.fetchone(); cursor.close(); db.close()
@@ -2244,7 +2297,9 @@ async def save_email_settings(request: EmailSettingsRequest, session_token: str 
     return {"success":True,"message":"Settings saved ✓ (Emails sent via Resend API; Gmail credentials used only for reply detection)"}
 
 @app.get("/campaigns/{campaign_id}/cooldown")
-async def get_cooldown_settings(campaign_id: int):
+async def get_cooldown_settings(campaign_id: int, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); cursor=db.cursor(dictionary=True)
     cursor.execute("SELECT soft_rejection_days,hard_rejection_days FROM campaigns WHERE id=%s",(campaign_id,))
     c=cursor.fetchone(); cursor.close(); db.close()
@@ -2252,7 +2307,9 @@ async def get_cooldown_settings(campaign_id: int):
     return {"soft_rejection_days":c.get("soft_rejection_days") or 30,"hard_rejection_days":c.get("hard_rejection_days") or 90}
 
 @app.put("/campaigns/{campaign_id}/cooldown")
-async def update_cooldown_settings(campaign_id: int, settings: CooldownSettings):
+async def update_cooldown_settings(campaign_id: int, settings: CooldownSettings, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); cursor=db.cursor()
     cursor.execute("UPDATE campaigns SET soft_rejection_days=%s,hard_rejection_days=%s WHERE id=%s",(settings.soft_rejection_days,settings.hard_rejection_days,campaign_id))
     db.commit(); cursor.close(); db.close()
@@ -2260,6 +2317,8 @@ async def update_cooldown_settings(campaign_id: int, settings: CooldownSettings)
 
 @app.post("/campaigns/{campaign_id}/bulk-send")
 async def bulk_send_emails(campaign_id: int, request: BulkEmailRequest, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); cursor=db.cursor(dictionary=True)
     cursor.execute("SELECT * FROM campaigns WHERE id=%s",(campaign_id,))
     campaign=cursor.fetchone()
@@ -2617,7 +2676,9 @@ async def resend_webhook(request: Request):
 
 # ── PREVIEW BULK EMAIL ────────────────────────────────────────
 @app.post("/campaigns/{campaign_id}/preview-bulk-email")
-async def preview_bulk_email(campaign_id: int, request: BulkEmailRequest):
+async def preview_bulk_email(campaign_id: int, request: BulkEmailRequest, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); c=db.cursor(dictionary=True)
     c.execute("SELECT l.* FROM leads l WHERE l.campaign_id=%s AND l.email IS NOT NULL AND l.email!='' AND l.confidence_score>=70 AND l.status NOT IN ('rejected','unsubscribed') LIMIT 1",(campaign_id,))
     lead=c.fetchone(); c.close(); db.close()
@@ -2687,7 +2748,9 @@ async def schedule_email_tz(request: dict):
 
 # ── CSV IMPORT ────────────────────────────────────────────────
 @app.post("/campaigns/{campaign_id}/import-csv")
-async def import_csv(campaign_id: int, file: UploadFile = File(...)):
+async def import_csv(campaign_id: int, file: UploadFile = File(...), session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     import csv,io
     content=await file.read()
     try: text=content.decode("utf-8")
@@ -2787,7 +2850,9 @@ async def fire_webhook(lead_data: dict, event: str):
 
 # ── A/B TEST BULK SEND ────────────────────────────────────────
 @app.post("/campaigns/{campaign_id}/bulk-send-ab")
-async def bulk_send_ab(campaign_id: int, request: BulkEmailRequest, background_tasks: BackgroundTasks):
+async def bulk_send_ab(campaign_id: int, request: BulkEmailRequest, background_tasks: BackgroundTasks, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); c=db.cursor(dictionary=True)
     c.execute("SELECT l.* FROM leads l WHERE l.campaign_id=%s AND l.email IS NOT NULL AND l.email!='' AND l.confidence_score>=70 AND l.status NOT IN ('rejected','unsubscribed','emailed') ORDER BY RAND()",(campaign_id,))
     all_leads=c.fetchall(); c.close(); db.close()
@@ -2836,25 +2901,36 @@ async def check_blacklist():
 
 # ── UNIFIED INBOX ─────────────────────────────────────────────
 @app.get("/unified-inbox")
-async def unified_inbox(campaign_id: int = 0):
+async def unified_inbox(campaign_id: int = 0, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
     db=get_db(); c=db.cursor(dictionary=True)
-    q="SELECT l.*,ca.name as campaign_name FROM leads l LEFT JOIN campaigns ca ON l.campaign_id=ca.id WHERE l.status IN ('responded','soft_rejection')"
-    p=[]
-    if campaign_id: q+=" AND l.campaign_id=%s"; p.append(campaign_id)
+    if campaign_id:
+        if not can_access_campaign(campaign_id, user):
+            c.close(); db.close(); raise HTTPException(403,"Not authorized for this campaign")
+        q="SELECT l.*,ca.name as campaign_name FROM leads l LEFT JOIN campaigns ca ON l.campaign_id=ca.id WHERE l.status IN ('responded','soft_rejection') AND l.campaign_id=%s"
+        p=[campaign_id]
+    else:
+        where_sql, params = campaign_access_filter(user, "ca")
+        q=f"SELECT l.*,ca.name as campaign_name FROM leads l LEFT JOIN campaigns ca ON l.campaign_id=ca.id WHERE l.status IN ('responded','soft_rejection') AND {where_sql}"
+        p=params
     q+=" ORDER BY l.updated_at DESC LIMIT 100"
     c.execute(q,p); leads=c.fetchall(); c.close(); db.close()
     return {"leads":leads,"total":len(leads)}
 
 @app.get("/inbox-stats")
-async def inbox_stats():
+async def inbox_stats(session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    where_sql, params = campaign_access_filter(user, "ca")
     db=get_db(); c=db.cursor(dictionary=True)
-    c.execute("SELECT SUM(CASE WHEN status='responded' THEN 1 ELSE 0 END) as responded,SUM(CASE WHEN email_opened=1 THEN 1 ELSE 0 END) as opened,SUM(CASE WHEN email_clicked=1 THEN 1 ELSE 0 END) as clicked,SUM(CASE WHEN emailed_at>=DATE_SUB(NOW(),INTERVAL 7 DAY) THEN 1 ELSE 0 END) as sent_week,SUM(COALESCE(open_count,0)) as total_opens FROM leads WHERE emailed_at IS NOT NULL")
+    c.execute(f"SELECT SUM(CASE WHEN l.status='responded' THEN 1 ELSE 0 END) as responded,SUM(CASE WHEN l.email_opened=1 THEN 1 ELSE 0 END) as opened,SUM(CASE WHEN l.email_clicked=1 THEN 1 ELSE 0 END) as clicked,SUM(CASE WHEN l.emailed_at>=DATE_SUB(NOW(),INTERVAL 7 DAY) THEN 1 ELSE 0 END) as sent_week,SUM(COALESCE(l.open_count,0)) as total_opens FROM leads l LEFT JOIN campaigns ca ON l.campaign_id=ca.id WHERE l.emailed_at IS NOT NULL AND {where_sql}", params)
     row=c.fetchone(); c.close(); db.close()
     return row or {}
 
 # ── HOT COMPANIES / INTENT SIGNALS ───────────────────────────
 @app.get("/campaigns/{campaign_id}/hot-companies")
-async def hot_companies(campaign_id: int):
+async def hot_companies(campaign_id: int, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); c=db.cursor(dictionary=True)
     c.execute("SELECT co.*,(SELECT COUNT(*) FROM leads l WHERE l.company_id=co.id) as contact_count,(SELECT COUNT(*) FROM leads l WHERE l.company_id=co.id AND l.status='responded') as responded_count FROM companies co WHERE co.campaign_id=%s ORDER BY co.created_at DESC",(campaign_id,))
     companies=c.fetchall(); c.close(); db.close()
@@ -3059,6 +3135,8 @@ async def send_template_to_lead(lead_id: int, tid: int, session_token: str = Coo
     """Send a saved template to one specific lead — fixes 'no option to use a
     saved template for a particular lead' (previously templates could only be
     loaded into the modal for manual editing, not sent directly)."""
+    user = get_current_user(session_token)
+    if not can_access_lead(lead_id, user): raise HTTPException(403,"Not authorized for this lead")
     db=get_db(); c=db.cursor(dictionary=True)
     c.execute("SELECT * FROM email_templates WHERE id=%s",(tid,))
     template=c.fetchone()
@@ -3085,6 +3163,8 @@ async def bulk_send_template(campaign_id: int, tid: int, session_token: str = Co
     """Bulk-send a saved template across all eligible ('new') leads in a campaign
     — fixes 'no option to use a saved template on bulk / on a campaign' (previously
     templates could only be loaded one-at-a-time into the individual send modal)."""
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); c=db.cursor(dictionary=True)
     c.execute("SELECT * FROM email_templates WHERE id=%s",(tid,))
     template=c.fetchone()
@@ -3145,7 +3225,9 @@ async def get_lead_activity(lead_id: int):
     return {"activities":activities}
 
 @app.post("/leads/{lead_id}/activity")
-async def add_lead_activity(lead_id: int, request: dict):
+async def add_lead_activity(lead_id: int, request: dict, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_lead(lead_id, user): raise HTTPException(403,"Not authorized for this lead")
     activity_type=request.get("activity_type","note")
     description=request.get("description","").strip()
     if not description: raise HTTPException(400,"Description required")
@@ -3175,7 +3257,9 @@ def log_lead_activity(lead_id: int, activity_type: str, description: str):
 # CRITICAL FIX 3 — CAMPAIGN PAUSE / RESUME
 # ═══════════════════════════════════════════════════════════════
 @app.post("/campaigns/{campaign_id}/pause")
-async def pause_campaign(campaign_id: int):
+async def pause_campaign(campaign_id: int, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); c=db.cursor()
     try:
         c.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS is_paused TINYINT(1) DEFAULT 0")
@@ -3186,7 +3270,9 @@ async def pause_campaign(campaign_id: int):
     return {"success":True,"message":"Campaign paused — no emails will be sent until resumed"}
 
 @app.post("/campaigns/{campaign_id}/resume")
-async def resume_campaign(campaign_id: int):
+async def resume_campaign(campaign_id: int, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); c=db.cursor()
     c.execute("UPDATE campaigns SET is_paused=0 WHERE id=%s",(campaign_id,))
     db.commit(); c.close(); db.close()
@@ -3219,7 +3305,8 @@ async def bulk_status_update(request: dict):
 # CRITICAL FIX 5 — DAILY EMAIL LOG / AUDIT TRAIL
 # ═══════════════════════════════════════════════════════════════
 @app.get("/email-log")
-async def get_email_log(campaign_id: int = 0, days: int = 7):
+async def get_email_log(campaign_id: int = 0, days: int = 7, session_token: str = Cookie(default=None)):
+    user = get_current_user(session_token)
     db=get_db(); c=db.cursor(dictionary=True)
     try:
         safe_days=int(days)  # sanitize before inlining into SQL (avoids MySQL INTERVAL %s placeholder syntax errors)
@@ -3228,7 +3315,13 @@ async def get_email_log(campaign_id: int = 0, days: int = 7):
              FROM leads l LEFT JOIN campaigns ca ON l.campaign_id=ca.id
              WHERE l.emailed_at >= DATE_SUB(NOW(),INTERVAL {safe_days} DAY)"""
         params=[]
-        if campaign_id: q+=" AND l.campaign_id=%s"; params.append(campaign_id)
+        if campaign_id:
+            if not can_access_campaign(campaign_id, user):
+                c.close(); db.close(); raise HTTPException(403,"Not authorized for this campaign")
+            q+=" AND l.campaign_id=%s"; params.append(campaign_id)
+        else:
+            where_sql, wparams = campaign_access_filter(user, "ca")
+            q+=f" AND {where_sql}"; params.extend(wparams)
         q+=" ORDER BY l.emailed_at DESC LIMIT 500"
         c.execute(q,params); rows=c.fetchall()
     except Exception as e:
@@ -3241,8 +3334,10 @@ async def get_email_log(campaign_id: int = 0, days: int = 7):
 # PARTIAL FIX 2 — TIMEZONE BULK SEND
 # ═══════════════════════════════════════════════════════════════
 @app.post("/campaigns/{campaign_id}/bulk-send-timezone")
-async def bulk_send_with_timezone(campaign_id: int, request: BulkEmailRequest, background_tasks: BackgroundTasks):
+async def bulk_send_with_timezone(campaign_id: int, request: BulkEmailRequest, background_tasks: BackgroundTasks, session_token: str = Cookie(default=None)):
     """Schedule emails to send at 9am each prospect's local time"""
+    user = get_current_user(session_token)
+    if not can_access_campaign(campaign_id, user): raise HTTPException(403,"Not authorized for this campaign")
     db=get_db(); c=db.cursor(dictionary=True)
     c.execute("""SELECT l.* FROM leads l WHERE l.campaign_id=%s
         AND l.email IS NOT NULL AND l.email!='' AND l.confidence_score>=70
@@ -3294,8 +3389,10 @@ def _send_tz_bg(leads, scenario):
 # NICE-TO-HAVE — WHATSAPP (via Twilio if configured)
 # ═══════════════════════════════════════════════════════════════
 @app.post("/leads/{lead_id}/send-whatsapp")
-async def send_whatsapp(lead_id: int, request: dict):
+async def send_whatsapp(lead_id: int, request: dict, session_token: str = Cookie(default=None)):
     """Send WhatsApp message via Twilio if configured"""
+    user = get_current_user(session_token)
+    if not can_access_lead(lead_id, user): raise HTTPException(403,"Not authorized for this lead")
     twilio_sid=os.getenv("TWILIO_ACCOUNT_SID","")
     twilio_token=os.getenv("TWILIO_AUTH_TOKEN","")
     twilio_wa=os.getenv("TWILIO_WHATSAPP_FROM","")
