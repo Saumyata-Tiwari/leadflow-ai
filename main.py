@@ -2952,10 +2952,18 @@ async def hot_companies(campaign_id: int, session_token: str = Cookie(default=No
 # MULTI-USER — INVITE TEAM MEMBER
 # ═══════════════════════════════════════════════════════════════
 @app.post("/auth/invite")
-async def invite_user(request: dict):
+async def invite_user(request: dict, session_token: str = Cookie(default=None)):
     """Create a new team member account"""
+    # CRITICAL: this endpoint previously had NO authentication check whatsoever —
+    # anyone, even without logging in at all, could POST here with role="admin"
+    # to create a brand-new admin account and gain full access to every user's
+    # real leads and campaigns. Confirmed as a real gap, not hypothetical.
+    caller = get_current_user(session_token)
+    if not caller or caller.get("role") != "admin":
+        raise HTTPException(403, "Only admins can invite team members")
     email = request.get("email","").strip().lower()
     role = request.get("role","member")
+    if role not in ("admin","member"): role = "member"
     password = request.get("password","LeadFlow2026!")
     if not email: raise HTTPException(400,"Email required")
     db=get_db(); c=db.cursor(dictionary=True)
@@ -2986,9 +2994,11 @@ async def get_team():
 async def remove_team_member(user_id: int, request: Request):
     token=request.cookies.get("session_token","")
     db=get_db(); c=db.cursor(dictionary=True)
-    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
+    c.execute("SELECT id,role FROM users WHERE session_token=%s",(token,))
     me=c.fetchone()
     if not me: c.close(); db.close(); raise HTTPException(401,"Not authenticated")
+    if me.get("role") != "admin":
+        c.close(); db.close(); raise HTTPException(403,"Only admins can remove team members")
     if me["id"]==user_id: c.close(); db.close(); return {"success":False,"message":"Cannot remove your own account"}
     c2=db.cursor()
     c2.execute("DELETE FROM users WHERE id=%s",(user_id,))
@@ -3002,9 +3012,23 @@ async def change_team_role(user_id: int, request: Request):
     if new_role not in ("admin","member"): raise HTTPException(400,"Role must be admin or member")
     token=request.cookies.get("session_token","")
     db=get_db(); c=db.cursor(dictionary=True)
-    c.execute("SELECT id FROM users WHERE session_token=%s",(token,))
+    c.execute("SELECT id,role FROM users WHERE session_token=%s",(token,))
     me=c.fetchone()
     if not me: c.close(); db.close(); raise HTTPException(401,"Not authenticated")
+    # CRITICAL: only an existing admin may change ANY role — including their own.
+    # Previously this only checked that the caller was logged in as *someone*,
+    # meaning any member could call this on their own account to instantly grant
+    # themselves admin, bypassing every ownership check built elsewhere in the
+    # app. Confirmed as a real gap, not hypothetical.
+    if me.get("role") != "admin":
+        c.close(); db.close(); raise HTTPException(403,"Only admins can change roles")
+    # Prevent an admin from demoting themselves if they're the only admin left —
+    # would permanently lock everyone out of admin access.
+    if user_id == me["id"] and new_role == "member":
+        c.execute("SELECT COUNT(*) as cnt FROM users WHERE role='admin'")
+        admin_count = c.fetchone()["cnt"]
+        if admin_count <= 1:
+            c.close(); db.close(); raise HTTPException(400,"Cannot demote the only remaining admin")
     c2=db.cursor()
     c2.execute("UPDATE users SET role=%s WHERE id=%s",(new_role,user_id))
     db.commit(); c2.close(); c.close(); db.close()
