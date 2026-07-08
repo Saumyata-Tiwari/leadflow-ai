@@ -395,8 +395,17 @@ async def signup(request: AuthRequest, response: Response):
     db = get_db(); cursor = db.cursor()
     try:
         token = generate_token()
+        # Only the very first account ever created on this instance becomes admin
+        # automatically (so someone can actually administer the app on first deploy).
+        # Every subsequent self-registration gets 'member' role by default — this
+        # was previously hardcoded to "admin" for EVERY signup, which completely
+        # defeated campaign ownership filtering: any new account could see all
+        # other users' real leads and campaigns, confirmed via live test.
+        cursor.execute("SELECT COUNT(*) FROM users")
+        is_first_user = cursor.fetchone()[0] == 0
+        role = "admin" if is_first_user else "member"
         cursor.execute("INSERT INTO users (username,email,password_hash,session_token,role) VALUES (%s,%s,%s,%s,%s)",
-            (request.username.strip(), request.email.strip().lower(), hash_password(request.password), token, "admin"))
+            (request.username.strip(), request.email.strip().lower(), hash_password(request.password), token, role))
         db.commit()
         response.set_cookie("session_token", token, httponly=True, max_age=86400*30)
         return {"success": True, "username": request.username, "token": token}
