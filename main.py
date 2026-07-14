@@ -46,7 +46,7 @@ def get_base_url() -> str:
         if row and row.get("base_url"):
             return row["base_url"].rstrip("/")
     except: pass
-    return os.getenv("BASE_URL","http://localhost:8000")
+    return os.getenv("BASE_URL","https://leadflowsaas.com")
 
 def send_via_resend(to_email, subject, body, from_name="LeadFlow AI", bcc_email=None, lead_id=None, reply_to=None):
     """Send email via Resend API - works on Railway (no SMTP port blocking).
@@ -258,7 +258,7 @@ def init_db():
     try:
         cursor.execute("ALTER TABLE user_email_settings ADD COLUMN daily_send_limit INT DEFAULT 20")
         cursor.execute("ALTER TABLE user_email_settings ADD COLUMN calendly_url VARCHAR(255) DEFAULT NULL")
-        cursor.execute("ALTER TABLE user_email_settings ADD COLUMN base_url VARCHAR(255) DEFAULT 'http://localhost:8000'")
+        cursor.execute("ALTER TABLE user_email_settings ADD COLUMN base_url VARCHAR(255) DEFAULT 'https://leadflowsaas.com'")
         db.commit()
     except: pass
     cursor.execute("""CREATE TABLE IF NOT EXISTS user_email_settings (
@@ -546,7 +546,7 @@ class EmailVerifyRequest(BaseModel):
 class EmailSettingsRequest(BaseModel):
     gmail_user: str; gmail_app_password: str; imap_enabled: bool = True; scan_frequency: int = 30
     calendly_url: Optional[str] = None
-    base_url: Optional[str] = "http://localhost:8000"
+    base_url: Optional[str] = "https://leadflowsaas.com"
     daily_send_limit: Optional[int] = 20
 
 class BulkEmailRequest(BaseModel):
@@ -2290,9 +2290,9 @@ async def save_email_settings(request: EmailSettingsRequest, session_token: str 
     cursor.execute("""INSERT INTO user_email_settings (user_id,gmail_user,gmail_app_password,imap_enabled,scan_frequency,calendly_url,base_url,daily_send_limit)
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE gmail_user=%s,gmail_app_password=%s,imap_enabled=%s,scan_frequency=%s,calendly_url=%s,base_url=%s,daily_send_limit=%s""",
         (user["id"],request.gmail_user,request.gmail_app_password,request.imap_enabled,request.scan_frequency,
-         request.calendly_url,request.base_url or "http://localhost:8000",request.daily_send_limit or 20,
+         request.calendly_url,request.base_url or "https://leadflowsaas.com",request.daily_send_limit or 20,
          request.gmail_user,request.gmail_app_password,request.imap_enabled,request.scan_frequency,
-         request.calendly_url,request.base_url or "http://localhost:8000",request.daily_send_limit or 20))
+         request.calendly_url,request.base_url or "https://leadflowsaas.com",request.daily_send_limit or 20))
     db.commit(); cursor.close(); db.close()
     return {"success":True,"message":"Settings saved ✓ (Emails sent via Resend API; Gmail credentials used only for reply detection)"}
 
